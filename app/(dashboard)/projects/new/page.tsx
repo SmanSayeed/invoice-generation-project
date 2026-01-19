@@ -1,0 +1,460 @@
+"use client";
+
+import { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useCreateProject } from "@/hooks/use-projects";
+import { useCustomers } from "@/hooks/use-customers";
+import { ArrowLeft, Loader2, Save, CalendarIcon } from "lucide-react";
+import Link from "next/link";
+import { format } from "date-fns";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
+import {
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+    FormDescription,
+} from "@/components/ui/form";
+import { Calendar } from "@/components/ui/calendar";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+
+const projectSchema = z.object({
+    title: z.string().min(1, "Title is required"),
+    details: z.string().optional(),
+    customer_id: z.string().min(1, "Customer is required"),
+    start_date: z.date().optional(),
+    end_date: z.date().optional(),
+    total_cost: z.number().min(0, "Must be positive"),
+    paid_amount: z.number().min(0, "Must be positive"),
+    project_by: z.string().optional(),
+    client_received_by: z.string().optional(),
+    priority: z.enum(["high", "mid", "low"]),
+    status: z.enum(["ongoing", "pending", "completed", "cancelled", "paused"]),
+});
+
+type ProjectFormValues = z.infer<typeof projectSchema>;
+
+function NewProjectForm() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const customerId = searchParams.get("customer");
+
+    const createMutation = useCreateProject();
+    const { data: customersData } = useCustomers({}, 1, 100);
+
+    const form = useForm<ProjectFormValues>({
+        resolver: zodResolver(projectSchema),
+        defaultValues: {
+            title: "",
+            details: "",
+            customer_id: customerId || "",
+            total_cost: 0,
+            paid_amount: 0,
+            project_by: "",
+            client_received_by: "",
+            priority: "mid",
+            status: "pending",
+        },
+    });
+
+    // Update customer_id if URL param changes
+    useEffect(() => {
+        if (customerId) {
+            form.setValue("customer_id", customerId);
+        }
+    }, [customerId, form]);
+
+    async function onSubmit(data: ProjectFormValues) {
+        const result = await createMutation.mutateAsync({
+            ...data,
+            start_date: data.start_date
+                ? format(data.start_date, "yyyy-MM-dd")
+                : undefined,
+            end_date: data.end_date
+                ? format(data.end_date, "yyyy-MM-dd")
+                : undefined,
+        });
+        if (result) {
+            router.push("/projects");
+        }
+    }
+
+    const totalCost = form.watch("total_cost") || 0;
+    const paidAmount = form.watch("paid_amount") || 0;
+    const pendingAmount = Math.max(0, totalCost - paidAmount);
+
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center gap-4">
+                <Button variant="ghost" size="icon" asChild>
+                    <Link href="/projects">
+                        <ArrowLeft className="h-4 w-4" />
+                    </Link>
+                </Button>
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">New Project</h1>
+                    <p className="text-muted-foreground mt-1">
+                        Create a new project for a customer
+                    </p>
+                </div>
+            </div>
+
+            {/* Form */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Project Details</CardTitle>
+                    <CardDescription>
+                        Fill in the project information. Fields marked with * are required.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Form {...form}>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                            <div className="grid gap-6 sm:grid-cols-2">
+                                {/* Title */}
+                                <FormField
+                                    control={form.control}
+                                    name="title"
+                                    render={({ field }) => (
+                                        <FormItem className="sm:col-span-2">
+                                            <FormLabel>
+                                                Title <span className="text-destructive">*</span>
+                                            </FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    placeholder="Project title (প্রকল্পের নাম)"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {/* Customer */}
+                                <FormField
+                                    control={form.control}
+                                    name="customer_id"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>
+                                                Customer <span className="text-destructive">*</span>
+                                            </FormLabel>
+                                            <Select
+                                                onValueChange={field.onChange}
+                                                value={field.value}
+                                            >
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select customer" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {customersData?.data.map((customer) => (
+                                                        <SelectItem key={customer.id} value={customer.id}>
+                                                            {customer.name} - {customer.mobile}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {/* Status */}
+                                <FormField
+                                    control={form.control}
+                                    name="status"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Status</FormLabel>
+                                            <Select
+                                                onValueChange={field.onChange}
+                                                defaultValue={field.value}
+                                            >
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select status" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="pending">Pending</SelectItem>
+                                                    <SelectItem value="ongoing">Ongoing</SelectItem>
+                                                    <SelectItem value="paused">Paused</SelectItem>
+                                                    <SelectItem value="completed">Completed</SelectItem>
+                                                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {/* Priority */}
+                                <FormField
+                                    control={form.control}
+                                    name="priority"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Priority</FormLabel>
+                                            <Select
+                                                onValueChange={field.onChange}
+                                                defaultValue={field.value}
+                                            >
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select priority" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="high">High</SelectItem>
+                                                    <SelectItem value="mid">Medium</SelectItem>
+                                                    <SelectItem value="low">Low</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {/* Start Date */}
+                                <FormField
+                                    control={form.control}
+                                    name="start_date"
+                                    render={({ field }) => (
+                                        <FormItem className="flex flex-col">
+                                            <FormLabel>Start Date</FormLabel>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <FormControl>
+                                                        <Button
+                                                            variant="outline"
+                                                            className={cn(
+                                                                "w-full pl-3 text-left font-normal",
+                                                                !field.value && "text-muted-foreground"
+                                                            )}
+                                                        >
+                                                            {field.value ? (
+                                                                format(field.value, "PPP")
+                                                            ) : (
+                                                                <span>Pick a date</span>
+                                                            )}
+                                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                        </Button>
+                                                    </FormControl>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                    <Calendar
+                                                        mode="single"
+                                                        selected={field.value}
+                                                        onSelect={field.onChange}
+                                                        initialFocus
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {/* End Date */}
+                                <FormField
+                                    control={form.control}
+                                    name="end_date"
+                                    render={({ field }) => (
+                                        <FormItem className="flex flex-col">
+                                            <FormLabel>End Date</FormLabel>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <FormControl>
+                                                        <Button
+                                                            variant="outline"
+                                                            className={cn(
+                                                                "w-full pl-3 text-left font-normal",
+                                                                !field.value && "text-muted-foreground"
+                                                            )}
+                                                        >
+                                                            {field.value ? (
+                                                                format(field.value, "PPP")
+                                                            ) : (
+                                                                <span>Pick a date</span>
+                                                            )}
+                                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                        </Button>
+                                                    </FormControl>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                    <Calendar
+                                                        mode="single"
+                                                        selected={field.value}
+                                                        onSelect={field.onChange}
+                                                        initialFocus
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {/* Total Cost */}
+                                <FormField
+                                    control={form.control}
+                                    name="total_cost"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Total Cost (৳)</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    type="number"
+                                                    placeholder="0.00"
+                                                    min="0"
+                                                    step="0.01"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {/* Paid Amount */}
+                                <FormField
+                                    control={form.control}
+                                    name="paid_amount"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Initial Payment (৳)</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    type="number"
+                                                    placeholder="0.00"
+                                                    min="0"
+                                                    step="0.01"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormDescription>
+                                                Pending: ৳{pendingAmount.toFixed(2)}
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {/* Project By */}
+                                <FormField
+                                    control={form.control}
+                                    name="project_by"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Project By</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    placeholder="Who is handling this project?"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {/* Client Received By */}
+                                <FormField
+                                    control={form.control}
+                                    name="client_received_by"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Client Received By</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="Who received the client?" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            {/* Details */}
+                            <FormField
+                                control={form.control}
+                                name="details"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Project Details</FormLabel>
+                                        <FormControl>
+                                            <Textarea
+                                                placeholder="Describe the project scope, requirements, deliverables..."
+                                                className="resize-none min-h-[120px]"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            {/* Actions */}
+                            <div className="flex justify-end gap-4 pt-4 border-t">
+                                <Button type="button" variant="outline" asChild>
+                                    <Link href="/projects">Cancel</Link>
+                                </Button>
+                                <Button type="submit" disabled={createMutation.isPending}>
+                                    {createMutation.isPending ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Creating...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Save className="mr-2 h-4 w-4" />
+                                            Create Project
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                        </form>
+                    </Form>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+export default function NewProjectPage() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <NewProjectForm />
+        </Suspense>
+    );
+}
