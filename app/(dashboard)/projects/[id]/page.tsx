@@ -139,258 +139,442 @@ export default function ProjectDetailPage({
         setDeletePaymentId(null);
     }
 
+    // Helper function to convert number to Bengali words
+    const numberToWords = (num: number): string => {
+        if (num === 0) return 'শূন্য';
+
+        const ones = ['', 'এক', 'দুই', 'তিন', 'চার', 'পাঁচ', 'ছয়', 'সাত', 'আট', 'নয়',
+            'দশ', 'এগারো', 'বারো', 'তেরো', 'চৌদ্দ', 'পনেরো', 'ষোল', 'সতেরো', 'আঠারো', 'উনিশ',
+            'বিশ', 'একুশ', 'বাইশ', 'তেইশ', 'চব্বিশ', 'পঁচিশ', 'ছাব্বিশ', 'সাতাশ', 'আঠাশ', 'উনত্রিশ',
+            'ত্রিশ', 'একত্রিশ', 'বত্রিশ', 'তেত্রিশ', 'চৌত্রিশ', 'পঁয়ত্রিশ', 'ছত্রিশ', 'সাঁইত্রিশ', 'আটত্রিশ', 'উনচল্লিশ',
+            'চল্লিশ', 'একচল্লিশ', 'বিয়াল্লিশ', 'তেতাল্লিশ', 'চুয়াল্লিশ', 'পঁয়তাল্লিশ', 'ছেচল্লিশ', 'সাতচল্লিশ', 'আটচল্লিশ', 'উনপঞ্চাশ',
+            'পঞ্চাশ', 'একান্ন', 'বায়ান্ন', 'তিপ্পান্ন', 'চুয়ান্ন', 'পঞ্চান্ন', 'ছাপান্ন', 'সাতান্ন', 'আটান্ন', 'উনষাট',
+            'ষাট', 'একষট্টি', 'বাষট্টি', 'তেষট্টি', 'চৌষট্টি', 'পঁয়ষট্টি', 'ছেষট্টি', 'সাতষট্টি', 'আটষট্টি', 'উনসত্তর',
+            'সত্তর', 'একাত্তর', 'বাহাত্তর', 'তিয়াত্তর', 'চুয়াত্তর', 'পঁচাত্তর', 'ছিয়াত্তর', 'সাতাত্তর', 'আটাত্তর', 'উনআশি',
+            'আশি', 'একাশি', 'বিরাশি', 'তিরাশি', 'চুরাশি', 'পঁচাশি', 'ছিয়াশি', 'সাতাশি', 'আটাশি', 'উননব্বই',
+            'নব্বই', 'একানব্বই', 'বিরানব্বই', 'তিরানব্বই', 'চুরানব্বই', 'পঁচানব্বই', 'ছিয়ানব্বই', 'সাতানব্বই', 'আটানব্বই', 'নিরানব্বই'];
+
+        const n = Math.floor(num);
+        if (n < 100) return ones[n] || n.toString();
+
+        const lakh = Math.floor(n / 100000);
+        const thousand = Math.floor((n % 100000) / 1000);
+        const hundred = Math.floor((n % 1000) / 100);
+        const rest = n % 100;
+
+        let result = '';
+        if (lakh > 0) result += ones[lakh] + ' লক্ষ ';
+        if (thousand > 0) result += ones[thousand] + ' হাজার ';
+        if (hundred > 0) result += ones[hundred] + ' শত ';
+        if (rest > 0) result += ones[rest];
+
+        return result.trim() || n.toString();
+    };
+
     const generateInvoicePdf = async () => {
         if (!project) return;
         setIsGeneratingPdf(true);
 
         // Generate HTML invoice that opens in a new window for printing
-        // This approach properly supports Bengali fonts using Google Fonts
+        // Professional black & white memo design
         const invoiceHtml = `
 <!DOCTYPE html>
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invoice - INV-${project.invoice_no}</title>
+    <title>ক্যাশ মেমো - ${project.invoice_no}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Noto Sans Bengali', sans-serif;
-            font-size: 14px;
-            line-height: 1.6;
-            color: #333;
-            padding: 40px;
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #000;
+            background: #fff;
         }
+        .memo {
+            max-width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            padding: 15px 20px;
+            position: relative;
+        }
+        
+        /* Header */
         .header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #7c3aed;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
         }
-        .title {
-            font-size: 32px;
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .logo-area img {
+            height: 60px;
+            object-fit: contain;
+        }
+        .company-name {
+            font-size: 22px;
             font-weight: 700;
-            color: #7c3aed;
         }
-        .invoice-no {
-            font-size: 14px;
-            color: #666;
-            margin-top: 4px;
+        .company-name-en {
+            font-size: 12px;
+            font-weight: 500;
+            color: #333;
         }
-        .date {
+        .memo-title {
             text-align: right;
-            color: #666;
         }
-        .section {
-            margin-bottom: 30px;
+        .memo-badge {
+            font-size: 20px;
+            font-weight: 700;
+            border: 2px solid #000;
+            padding: 5px 15px;
+            display: inline-block;
         }
-        .section-title {
-            font-size: 16px;
+        .owner-info {
+            margin-top: 8px;
+            font-size: 11px;
+            text-align: right;
+        }
+        .owner-name {
             font-weight: 600;
-            color: #7c3aed;
-            margin-bottom: 12px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        /* Info Fields */
+        .info-fields {
+            margin-bottom: 15px;
         }
         .info-row {
             display: flex;
-            margin-bottom: 8px;
+            border-bottom: 1px solid #ccc;
+            padding: 6px 0;
         }
-        .label {
-            width: 150px;
-            color: #666;
-            font-weight: 500;
+        .info-row:last-child {
+            border-bottom: none;
         }
-        .value {
+        .info-label {
+            width: 100px;
+            font-weight: 600;
+        }
+        .info-value {
             flex: 1;
-            color: #333;
+            min-height: 18px;
         }
-        table {
+        .info-row.two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        .info-col {
+            display: flex;
+        }
+        
+        /* Table */
+        .items-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 12px;
+            margin-bottom: 15px;
         }
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        th {
-            background: #f9fafb;
+        .items-table th {
+            background: #000;
+            color: #fff;
+            padding: 10px 8px;
             font-weight: 600;
-            color: #374151;
+            text-align: left;
         }
-        .text-right {
-            text-align: right;
+        .items-table th:nth-child(3),
+        .items-table th:nth-child(4),
+        .items-table th:last-child {
+            text-align: center;
+            width: 80px;
         }
-        .totals {
-            margin-top: 30px;
+        .items-table th:first-child {
+            width: 50%;
+        }
+        .items-table td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            vertical-align: top;
+        }
+        .items-table td:nth-child(3),
+        .items-table td:nth-child(4),
+        .items-table td:last-child {
+            text-align: center;
+        }
+        .items-table tbody tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        
+        /* Kothay (Words) Section */
+        .kothay-section {
+            background: #f0f0f0;
+            padding: 8px 12px;
+            margin-bottom: 20px;
+            border-left: 3px solid #000;
+        }
+        .kothay-label {
+            font-weight: 600;
+        }
+        
+        /* Totals */
+        .totals-area {
             display: flex;
-            flex-direction: column;
-            align-items: flex-end;
+            justify-content: flex-end;
+            margin-bottom: 30px;
         }
-        .total-row {
+        .totals-box {
+            width: 200px;
+        }
+        .totals-row {
             display: flex;
             justify-content: space-between;
-            width: 250px;
-            padding: 8px 0;
-            border-bottom: 1px solid #e5e7eb;
+            padding: 5px 0;
+            border-bottom: 1px solid #ddd;
         }
-        .total-row:last-child {
-            border-bottom: 2px solid #7c3aed;
-        }
-        .total-label {
-            color: #666;
-        }
-        .total-value {
-            font-weight: 600;
-            color: #333;
-        }
-        .due-amount {
-            color: #dc2626;
+        .totals-row:last-child {
+            border-bottom: 2px solid #000;
             font-weight: 700;
+            font-size: 14px;
         }
-        .footer {
-            margin-top: 60px;
-            text-align: center;
-            color: #9ca3af;
-            font-size: 12px;
-            border-top: 1px solid #e5e7eb;
+        
+        /* Signatures */
+        .signatures {
+            display: flex;
+            justify-content: space-between;
+            margin: 50px 0 30px;
             padding-top: 20px;
         }
+        .sig-box {
+            text-align: center;
+            min-width: 150px;
+        }
+        .sig-line {
+            border-top: 1px solid #000;
+            padding-top: 5px;
+            font-size: 11px;
+        }
+        .sig-center {
+            text-align: center;
+            flex: 1;
+        }
+        
+        /* Footer */
+        .footer {
+            background: #1a1a1a;
+            color: #fff;
+            font-size: 11px;
+            margin-top: 20px;
+        }
+        .footer-address {
+            background: #c41e3a;
+            padding: 8px 20px;
+            text-align: center;
+            font-weight: 500;
+        }
+        .footer-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+        }
+        .footer-left {
+            display: flex;
+            gap: 20px;
+        }
+        .footer-right {
+            text-align: right;
+        }
+        .footer-tagline {
+            font-weight: 600;
+            font-size: 12px;
+        }
+        .footer-sub {
+            font-size: 10px;
+            color: #ccc;
+        }
+        
+        /* Print */
         .print-btn {
             position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #7c3aed;
-            color: white;
-            padding: 12px 24px;
+            top: 15px;
+            right: 15px;
+            background: #000;
+            color: #fff;
+            padding: 10px 20px;
             border: none;
-            border-radius: 8px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .print-btn:hover {
-            background: #6d28d9;
+            font-family: 'Noto Sans Bengali', sans-serif;
         }
         @media print {
-            .print-btn {
-                display: none;
-            }
-            body {
-                padding: 20px;
-            }
+            .print-btn { display: none; }
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .memo { padding: 10px; }
         }
     </style>
 </head>
 <body>
-    <button class="print-btn" onclick="window.print()">প্রিন্ট / PDF ডাউনলোড</button>
+    <button class="print-btn" onclick="window.print()">প্রিন্ট / PDF</button>
     
-    <div class="header">
-        <div>
-            <div class="title">ইনভয়েস</div>
-            <div class="invoice-no">ইনভয়েস নং: INV-${project.invoice_no}</div>
+    <div class="memo">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo-area">
+                <img src="/images/logo.jpeg" alt="Logo" onerror="this.style.display='none'" />
+                <div>
+                    <div class="company-name">সিয়াম প্রিন্টিং প্রেস এন্ড পেপার হাউজ</div>
+                    <div class="company-name-en">Siyam Printing Press & Paper House</div>
+                </div>
+            </div>
+            <div class="memo-title">
+                <div class="memo-badge">ক্যাশ মেমো</div>
+                <div class="owner-info">
+                    <div class="owner-name">স্বত্বাধিকারী ও পরিচালক</div>
+                    <div><strong>মোঃ শাহজাহান</strong></div>
+                    <div>📞 +880 1913 908249</div>
+                    <div>📞 +880 1790 658341</div>
+                </div>
+            </div>
         </div>
-        <div class="date">
-            <strong>তারিখ:</strong> ${formatDate(new Date(), "dd/MM/yyyy")}
-        </div>
-    </div>
 
-    <div class="section">
-        <div class="section-title">গ্রাহকের তথ্য</div>
-        <div class="info-row">
-            <span class="label">গ্রাহকের নাম:</span>
-            <span class="value">${project.customer_name || "-"}</span>
+        <!-- Info Fields -->
+        <div class="info-fields">
+            <div class="info-row">
+                <span class="info-label">ক্রমিক নং:</span>
+                <span class="info-value">${project.invoice_no}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">তারিখ:</span>
+                <span class="info-value">${formatDate(new Date(), "dd/MM/yyyy")}</span>
+            </div>
+            <div class="info-row two-col">
+                <div class="info-col">
+                    <span class="info-label">গ্রাহকের নাম:</span>
+                    <span class="info-value">${project.customer_name || ""}</span>
+                </div>
+                <div class="info-col">
+                    <span class="info-label">ওয়ার্ক ইন:</span>
+                    <span class="info-value">${project.project_by || ""}</span>
+                </div>
+            </div>
+            <div class="info-row two-col">
+                <div class="info-col">
+                    <span class="info-label">ঠিকানা:</span>
+                    <span class="info-value">${project.customer_address || ""}</span>
+                </div>
+                <div class="info-col">
+                    <span class="info-label">ক্লাইন্ট রিসিভড:</span>
+                    <span class="info-value">${project.client_received_by || ""}</span>
+                </div>
+            </div>
+            <div class="info-row">
+                <span class="info-label">মোবাইল:</span>
+                <span class="info-value">${project.customer_mobile || ""}</span>
+            </div>
         </div>
-        <div class="info-row">
-            <span class="label">মোবাইল:</span>
-            <span class="value">${project.customer_mobile || "-"}</span>
-        </div>
-        ${project.customer_address ? `
-        <div class="info-row">
-            <span class="label">ঠিকানা:</span>
-            <span class="value">${project.customer_address}</span>
-        </div>
-        ` : ''}
-    </div>
 
-    <div class="section">
-        <div class="section-title">প্রকল্পের তথ্য</div>
-        <div class="info-row">
-            <span class="label">প্রকল্পের শিরোনাম:</span>
-            <span class="value">${project.title}</span>
-        </div>
-        <div class="info-row">
-            <span class="label">স্ট্যাটাস:</span>
-            <span class="value">${project.status}</span>
-        </div>
-        ${project.client_received_by ? `
-        <div class="info-row">
-            <span class="label">প্রাপ্তি সাইন করেছেন:</span>
-            <span class="value">${project.client_received_by}</span>
-        </div>
-        ` : ''}
-        ${project.details ? `
-        <div class="info-row">
-            <span class="label">বিবরণ:</span>
-            <span class="value">${stripHtml(project.details)}</span>
-        </div>
-        ` : ''}
-    </div>
-
-    <div class="section">
-        <div class="section-title">পেমেন্ট হিস্টরি</div>
-        <table>
+        <!-- Items Table -->
+        <table class="items-table">
             <thead>
                 <tr>
-                    <th>তারিখ</th>
-                    <th>নোট</th>
-                    <th class="text-right">পরিমাণ</th>
+                    <th>বিবরণ</th>
+                    <th>পরিমাণ</th>
+                    <th>দর</th>
+                    <th>টাকা</th>
                 </tr>
             </thead>
             <tbody>
+                <tr>
+                    <td>
+                        <strong>${project.title}</strong>
+                        ${project.details ? `<br><small>${stripHtml(project.details).substring(0, 150)}${stripHtml(project.details).length > 150 ? '...' : ''}</small>` : ''}
+                    </td>
+                    <td>১</td>
+                    <td>৳${project.total_cost.toFixed(0)}</td>
+                    <td><strong>৳${project.total_cost.toFixed(0)}</strong></td>
+                </tr>
                 ${payments?.length ? payments.map(payment => `
                 <tr>
-                    <td>${formatDate(payment.payment_date, "dd/MM/yyyy")}</td>
-                    <td>${payment.note || "-"}</td>
-                    <td class="text-right">৳${payment.amount.toFixed(2)}</td>
+                    <td>পেমেন্ট (${formatDate(payment.payment_date, "dd/MM/yy")}) ${payment.note ? `- ${payment.note}` : ''}</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td style="color: green;">-৳${payment.amount.toFixed(0)}</td>
                 </tr>
-                `).join('') : '<tr><td colspan="3" style="text-align:center;color:#999;">কোন পেমেন্ট নেই</td></tr>'}
+                `).join('') : ''}
+                <!-- Empty rows for writing -->
+                <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
+                <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
+                <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
             </tbody>
         </table>
-    </div>
 
-    <div class="totals">
-        <div class="total-row">
-            <span class="total-label">মোট মূল্য:</span>
-            <span class="total-value">৳${project.total_cost.toFixed(2)}</span>
+        <!-- Totals -->
+        <div class="totals-area">
+            <div class="totals-box">
+                <div class="totals-row">
+                    <span>মোট:</span>
+                    <span>৳${project.total_cost.toFixed(0)}</span>
+                </div>
+                <div class="totals-row">
+                    <span>জমা:</span>
+                    <span>৳${project.paid_amount.toFixed(0)}</span>
+                </div>
+                <div class="totals-row">
+                    <span>বাকি:</span>
+                    <span>৳${project.pending_amount.toFixed(0)}</span>
+                </div>
+            </div>
         </div>
-        <div class="total-row">
-            <span class="total-label">প্রদত্ত:</span>
-            <span class="total-value">৳${project.paid_amount.toFixed(2)}</span>
-        </div>
-        <div class="total-row">
-            <span class="total-label">বকেয়া:</span>
-            <span class="total-value due-amount">৳${project.pending_amount.toFixed(2)}</span>
-        </div>
-    </div>
 
-    <div class="footer">
-        এই ইনভয়েসটি স্বয়ংক্রিয়ভাবে তৈরি করা হয়েছে
+        <!-- Kothay -->
+        <div class="kothay-section">
+            <span class="kothay-label">কথায়:</span> 
+            <span>${numberToWords(project.pending_amount)} টাকা মাত্র</span>
+        </div>
+
+        <!-- Signatures with Tagline in center -->
+        <div class="signatures">
+            <div class="sig-box">
+                <div class="sig-line">গ্রাহকের স্বাক্ষর</div>
+            </div>
+            <div class="sig-center">
+                <div style="font-size: 11px; text-align: center;">
+                    সকল প্রকার ডিজিটাল প্রিন্ট ও<br>
+                    ছাপার কাজের নির্ভরযোগ্য প্রতিষ্ঠান।
+                </div>
+            </div>
+            <div class="sig-box">
+                <div class="sig-line">সিয়াম প্রিন্টিং প্রেসের পক্ষে</div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="footer-address">
+                📍 ভাই ভাই সুপার মার্কেট, গ্রাউন্ড ফ্লোর, জাহাঙ্গীরপুর সেন্টার, মদন, নেত্রকোনা।
+            </div>
+            <div class="footer-bottom">
+                <div class="footer-left">
+                    <span>📧 siyamsph2017@gmail.com</span>
+                    <span>📧 siyam.print@gmail.com</span>
+                </div>
+                <div class="footer-right">
+                    <div class="footer-tagline">We have complete printing service</div>
+                    <div class="footer-sub">So we are the best in quality and print.</div>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>
