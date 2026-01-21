@@ -2,12 +2,19 @@
 
 import { use, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useProject, useUpdateProject } from "@/hooks/use-projects";
 import { useCustomers } from "@/hooks/use-customers";
-import { ArrowLeft, Loader2, Save, CalendarIcon } from "lucide-react";
+import {
+    ArrowLeft,
+    Loader2,
+    Save,
+    CalendarIcon,
+    Plus,
+    Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
 
@@ -46,6 +53,15 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
+const itemSchema = z.object({
+    id: z.string().optional(),
+    title: z.string().min(1, "বিবরণ প্রয়োজন"),
+    details: z.string().optional(),
+    quantity: z.number().min(0, "Must be positive"),
+    rate: z.number().min(0, "Must be positive"),
+    amount: z.number().optional(),
+});
+
 const projectSchema = z.object({
     title: z.string().min(1, "Title is required"),
     details: z.string().optional(),
@@ -56,6 +72,7 @@ const projectSchema = z.object({
     client_received_by: z.string().optional(),
     priority: z.enum(["high", "mid", "low"]),
     status: z.enum(["ongoing", "pending", "completed", "cancelled", "paused"]),
+    items: z.array(itemSchema),
 });
 
 type ProjectFormValues = z.infer<typeof projectSchema>;
@@ -80,8 +97,27 @@ export default function EditProjectPage({
             client_received_by: "",
             priority: "mid",
             status: "pending",
+            items: [],
         },
     });
+
+    const { fields, append, remove } = useFieldArray({
+        control: form.control,
+        name: "items",
+    });
+
+    // Watch items to calculate totals
+    const watchedItems = form.watch("items");
+
+    // Calculate total cost
+    useEffect(() => {
+        if (!watchedItems) return;
+
+        const total = watchedItems.reduce((sum: number, item: any) => sum + (item.amount || 0), 0);
+        if (form.getValues("total_cost") !== total) {
+            form.setValue("total_cost", total);
+        }
+    }, [watchedItems, form]);
 
     useEffect(() => {
         if (project) {
@@ -95,15 +131,23 @@ export default function EditProjectPage({
                 client_received_by: project.client_received_by || "",
                 priority: project.priority,
                 status: project.status,
+                items: project.items?.map(item => ({
+                    ...item,
+                    details: item.details || "",
+                })) || [],
             });
         }
     }, [project, form]);
 
     async function onSubmit(data: ProjectFormValues) {
+        // Prepare items by removing the amount field which is calculated in DB
+        const items = data.items.map(({ amount, ...item }) => item);
+
         await updateMutation.mutateAsync({
             id,
             data: {
                 ...data,
+                items,
                 start_date: data.start_date
                     ? format(data.start_date, "yyyy-MM-dd")
                     : undefined,
@@ -176,7 +220,7 @@ export default function EditProjectPage({
                 </CardHeader>
                 <CardContent>
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                             <div className="grid gap-6 sm:grid-cols-2">
                                 {/* Title */}
                                 <FormField
@@ -185,7 +229,7 @@ export default function EditProjectPage({
                                     render={({ field }) => (
                                         <FormItem className="sm:col-span-2">
                                             <FormLabel>
-                                                Title <span className="text-destructive">*</span>
+                                                Project Name <span className="text-destructive">*</span>
                                             </FormLabel>
                                             <FormControl>
                                                 <Input
@@ -205,7 +249,11 @@ export default function EditProjectPage({
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Status</FormLabel>
-                                            <Select onValueChange={field.onChange} value={field.value}>
+                                            <Select
+                                                onValueChange={field.onChange}
+                                                value={field.value}
+                                                key={field.value}
+                                            >
                                                 <FormControl>
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="Select status" />
@@ -231,7 +279,11 @@ export default function EditProjectPage({
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Priority</FormLabel>
-                                            <Select onValueChange={field.onChange} value={field.value}>
+                                            <Select
+                                                onValueChange={field.onChange}
+                                                value={field.value}
+                                                key={field.value}
+                                            >
                                                 <FormControl>
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="Select priority" />
@@ -247,7 +299,132 @@ export default function EditProjectPage({
                                         </FormItem>
                                     )}
                                 />
+                            </div>
 
+                            {/* Project Items Section */}
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-lg font-medium">Project Items (আইটেম তালিকা)</h3>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            append({
+                                                title: "",
+                                                details: "",
+                                                quantity: 1,
+                                                rate: 0,
+                                                amount: 0,
+                                            })
+                                        }
+                                    >
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Add Item
+                                    </Button>
+                                </div>
+
+                                <div className="border rounded-lg overflow-hidden">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-muted">
+                                            <tr>
+                                                <th className="px-4 py-2 text-left font-medium w-[40%]">বিবরণ</th>
+                                                <th className="px-4 py-2 text-left font-medium w-[15%]">পরিমাণ</th>
+                                                <th className="px-4 py-2 text-left font-medium w-[15%]">দর (৳)</th>
+                                                <th className="px-4 py-2 text-left font-medium w-[20%]">টাকা (৳)</th>
+                                                <th className="px-4 py-2 text-center font-medium w-[10%]">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y">
+                                            {fields.map((item, index) => (
+                                                <tr key={item.id}>
+                                                    <td className="p-2">
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`items.${index}.title`}
+                                                            render={({ field }) => (
+                                                                <FormItem>
+                                                                    <FormControl>
+                                                                        <Input placeholder="Item title" {...field} />
+                                                                    </FormControl>
+                                                                    <FormMessage />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                    </td>
+                                                    <td className="p-2">
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`items.${index}.quantity`}
+                                                            render={({ field }) => (
+                                                                <FormItem>
+                                                                    <FormControl>
+                                                                        <Input
+                                                                            type="number"
+                                                                            step="0.01"
+                                                                            {...field}
+                                                                            onChange={(e) => {
+                                                                                const val = parseFloat(e.target.value) || 0;
+                                                                                field.onChange(val);
+                                                                                const rate = form.getValues(`items.${index}.rate`) || 0;
+                                                                                form.setValue(`items.${index}.amount`, val * rate);
+                                                                            }}
+                                                                        />
+                                                                    </FormControl>
+                                                                    <FormMessage />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                    </td>
+                                                    <td className="p-2">
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`items.${index}.rate`}
+                                                            render={({ field }) => (
+                                                                <FormItem>
+                                                                    <FormControl>
+                                                                        <Input
+                                                                            type="number"
+                                                                            step="0.01"
+                                                                            {...field}
+                                                                            onChange={(e) => {
+                                                                                const val = parseFloat(e.target.value) || 0;
+                                                                                field.onChange(val);
+                                                                                const qty = form.getValues(`items.${index}.quantity`) || 0;
+                                                                                form.setValue(`items.${index}.amount`, qty * val);
+                                                                            }}
+                                                                        />
+                                                                    </FormControl>
+                                                                    <FormMessage />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                    </td>
+                                                    <td className="p-2">
+                                                        <div className="px-3 py-2 font-medium">
+                                                            ৳{watchedItems[index]?.amount?.toFixed(2) || "0.00"}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-2 text-center">
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="text-destructive h-8 w-8"
+                                                            onClick={() => remove(index)}
+                                                            disabled={fields.length === 1}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-6 sm:grid-cols-2">
                                 {/* Start Date */}
                                 <FormField
                                     control={form.control}
@@ -339,8 +516,8 @@ export default function EditProjectPage({
                                                 <Input
                                                     type="number"
                                                     placeholder="0.00"
-                                                    min="0"
-                                                    step="0.01"
+                                                    readOnly
+                                                    className="bg-muted font-bold"
                                                     {...field}
                                                 />
                                             </FormControl>
@@ -393,11 +570,11 @@ export default function EditProjectPage({
                                 name="details"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Project Details</FormLabel>
+                                        <FormLabel>Remarks / Additional Details</FormLabel>
                                         <FormControl>
                                             <Textarea
-                                                placeholder="Describe the project scope, requirements, deliverables..."
-                                                className="resize-none min-h-[120px]"
+                                                placeholder="Additional information..."
+                                                className="resize-none min-h-[80px]"
                                                 {...field}
                                             />
                                         </FormControl>

@@ -101,14 +101,28 @@ export function useProject(id: string) {
     return useQuery({
         queryKey: [PROJECTS_QUERY_KEY, id],
         queryFn: async (): Promise<ProjectWithDetails | null> => {
-            const { data, error } = await supabase
+            const { data: project, error: projectError } = await supabase
                 .from("projects_with_details")
                 .select("*")
                 .eq("id", id)
                 .single();
 
-            if (error) throw error;
-            return data;
+            if (projectError) throw projectError;
+            if (!project) return null;
+
+            // Fetch items
+            const { data: items, error: itemsError } = await supabase
+                .from("project_items")
+                .select("*")
+                .eq("project_id", id)
+                .order("sort_order", { ascending: true });
+
+            if (itemsError) throw itemsError;
+
+            return {
+                ...project,
+                items: items ?? [],
+            };
         },
         enabled: !!id,
     });
@@ -139,14 +153,32 @@ export function useCreateProject() {
 
     return useMutation({
         mutationFn: async (input: CreateProjectInput): Promise<Project> => {
-            const { data, error } = await supabase
+            const { items, ...projectData } = input;
+
+            // 1. Create the project
+            const { data: project, error: projectError } = await supabase
                 .from("projects")
-                .insert(input)
+                .insert(projectData)
                 .select()
                 .single();
 
-            if (error) throw error;
-            return data;
+            if (projectError) throw projectError;
+
+            // 2. Create items if any
+            if (items && items.length > 0) {
+                const itemsWithProjectId = items.map((item) => ({
+                    ...item,
+                    project_id: project.id,
+                }));
+
+                const { error: itemsError } = await supabase
+                    .from("project_items")
+                    .insert(itemsWithProjectId);
+
+                if (itemsError) throw itemsError;
+            }
+
+            return project;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: [PROJECTS_QUERY_KEY] });
@@ -174,15 +206,62 @@ export function useUpdateProject() {
             id: string;
             data: UpdateProjectInput;
         }): Promise<Project> => {
-            const { data, error } = await supabase
+            const { items, ...projectData } = input;
+
+            // 1. Update project metadata
+            const { data: project, error: projectError } = await supabase
                 .from("projects")
-                .update(input)
+                .update(projectData)
                 .eq("id", id)
                 .select()
                 .single();
 
-            if (error) throw error;
-            return data;
+            if (projectError) throw projectError;
+
+            // 2. Handle items if provided
+            if (items) {
+                // Get current items to find which ones to delete
+                const { data: existingItems } = await supabase
+                    .from("project_items")
+                    .select("id")
+                    .eq("project_id", id);
+
+                const newItemIds = items
+                    .filter((item) => "id" in item && item.id)
+                    .map((item) => (item as any).id);
+
+                // Delete items that are no longer present
+                if (existingItems && existingItems.length > 0) {
+                    const toDelete = existingItems
+                        .filter((item) => !newItemIds.includes(item.id))
+                        .map((item) => item.id);
+
+                    if (toDelete.length > 0) {
+                        const { error: deleteError } = await supabase
+                            .from("project_items")
+                            .delete()
+                            .in("id", toDelete);
+                        if (deleteError) throw deleteError;
+                    }
+                }
+
+                // Upsert remaining/new items
+                if (items.length > 0) {
+                    const itemsToUpsert = items.map((item, index) => ({
+                        ...item,
+                        project_id: id,
+                        sort_order: (item as any).sort_order ?? index,
+                    }));
+
+                    const { error: itemsError } = await supabase
+                        .from("project_items")
+                        .upsert(itemsToUpsert);
+
+                    if (itemsError) throw itemsError;
+                }
+            }
+
+            return project;
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: [PROJECTS_QUERY_KEY] });

@@ -197,11 +197,12 @@ export default function ProjectDetailPage({
             background: #fff;
         }
         .memo {
-            max-width: 210mm;
-            min-height: 297mm;
+            width: 5.4in;
+            min-height: 8in;
             margin: 0 auto;
-            padding: 15px 20px;
+            padding: 8px 12px;
             position: relative;
+            font-size: 10px;
         }
         
         /* Header */
@@ -210,70 +211,96 @@ export default function ProjectDetailPage({
             justify-content: space-between;
             align-items: flex-start;
             border-bottom: 2px solid #000;
-            padding-bottom: 10px;
-            margin-bottom: 15px;
+            padding-bottom: 8px;
+            margin-bottom: 5px;
         }
         .logo-area {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
         .logo-area img {
-            height: 60px;
+            height: 45px;
             object-fit: contain;
         }
         .company-name {
-            font-size: 22px;
+            font-size: 16px;
             font-weight: 700;
         }
         .company-name-en {
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 500;
             color: #333;
         }
         .memo-title {
             text-align: right;
         }
+        .owner-info {
+            font-size: 9px;
+            text-align: right;
+            margin-top: 5px;
+            line-height: 1.3;
+        }
         .memo-badge {
-            font-size: 20px;
+            font-size: 14px;
             font-weight: 700;
             border: 2px solid #000;
-            padding: 5px 15px;
+            padding: 3px 15px;
             display: inline-block;
+            white-space: nowrap;
         }
-        .owner-info {
-            margin-top: 8px;
-            font-size: 11px;
-            text-align: right;
+        .contact-info {
+            font-size: 9px;
+            margin-top: 3px;
         }
-        .owner-name {
-            font-weight: 600;
+        .hotline {
+            background: #c41e3a;
+            color: #fff;
+            padding: 1px 6px;
+            border-radius: 2px;
+            font-weight: 700;
+        }
+        .hotline-number {
+            color: #c41e3a;
+            font-weight: 700;
+        }
+        .hotline {
+            background: #c41e3a;
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-weight: 700;
+        }
+        .hotline-number {
+            color: #c41e3a;
+            font-weight: 700;
         }
         
         /* Info Fields */
         .info-fields {
-            margin-bottom: 15px;
+            margin-bottom: 8px;
         }
         .info-row {
             display: flex;
-            border-bottom: 1px solid #ccc;
-            padding: 6px 0;
+            border-bottom: 1px solid #eee;
+            padding: 3px 0;
         }
         .info-row:last-child {
             border-bottom: none;
         }
         .info-label {
-            width: 100px;
+            width: 90px;
             font-weight: 600;
+            font-size: 11px;
         }
         .info-value {
             flex: 1;
-            min-height: 18px;
+            font-size: 12px;
         }
         .info-row.two-col {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 30px;
+            gap: 20px;
         }
         .info-col {
             display: flex;
@@ -283,7 +310,7 @@ export default function ProjectDetailPage({
         .items-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 15px;
+            margin-bottom: 8px;
         }
         .items-table th {
             background: #000;
@@ -315,44 +342,33 @@ export default function ProjectDetailPage({
             background: #f9f9f9;
         }
         
-        /* Kothay (Words) Section */
-        .kothay-section {
-            background: #f0f0f0;
-            padding: 8px 12px;
-            margin-bottom: 20px;
-            border-left: 3px solid #000;
+        /* Totals & Kothay Combined */
+        .totals-kothay-box {
+            background: #f5f5f5;
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
         }
-        .kothay-label {
-            font-weight: 600;
+        .totals-line {
+            font-size: 12px;
+            padding: 3px 0;
         }
-        
-        /* Totals */
-        .totals-area {
-            display: flex;
-            justify-content: flex-end;
-            margin-bottom: 30px;
-        }
-        .totals-box {
-            width: 200px;
-        }
-        .totals-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 5px 0;
-            border-bottom: 1px solid #ddd;
-        }
-        .totals-row:last-child {
-            border-bottom: 2px solid #000;
+        .totals-line strong {
             font-weight: 700;
-            font-size: 14px;
+        }
+        .kothay-line {
+            font-size: 12px;
+            padding-top: 5px;
+            border-top: 1px solid #ccc;
+            margin-top: 5px;
         }
         
         /* Signatures */
         .signatures {
             display: flex;
             justify-content: space-between;
-            margin: 50px 0 30px;
-            padding-top: 20px;
+            margin: 30px 0 15px;
+            padding-top: 15px;
         }
         .sig-box {
             text-align: center;
@@ -384,22 +400,24 @@ export default function ProjectDetailPage({
         .footer-bottom {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            padding: 10px 20px;
+            align-items: flex-start;
+            padding: 8px 15px;
         }
         .footer-left {
             display: flex;
-            gap: 20px;
+            flex-direction: column;
+            gap: 2px;
+            font-size: 9px;
         }
         .footer-right {
             text-align: right;
         }
         .footer-tagline {
             font-weight: 600;
-            font-size: 12px;
+            font-size: 11px;
         }
         .footer-sub {
-            font-size: 10px;
+            font-size: 9px;
             color: #ccc;
         }
         
@@ -431,32 +449,33 @@ export default function ProjectDetailPage({
         <!-- Header -->
         <div class="header">
             <div class="logo-area">
-                <img src="/images/logo.jpeg" alt="Logo" onerror="this.style.display='none'" />
                 <div>
-                    <div class="company-name">সিয়াম প্রিন্টিং প্রেস এন্ড পেপার হাউজ</div>
-                    <div class="company-name-en">Siyam Printing Press & Paper House</div>
+                    <img src="/images/full-logo.png" alt="Logo" onerror="this.style.display='none'" />
+                    <div class="contact-info">
+                        <span class="hotline">HOTLINE</span> <span class="hotline-number">+8801980223401</span>|📞+8801913908249 |📞+8801790658341
+                    </div>
                 </div>
             </div>
             <div class="memo-title">
                 <div class="memo-badge">ক্যাশ মেমো</div>
                 <div class="owner-info">
-                    <div class="owner-name">স্বত্বাধিকারী ও পরিচালক</div>
+                    <div>স্বত্বাধিকারী ও পরিচালক:</div>
                     <div><strong>মোঃ শাহজাহান</strong></div>
-                    <div>📞 +880 1913 908249</div>
-                    <div>📞 +880 1790 658341</div>
                 </div>
             </div>
         </div>
 
         <!-- Info Fields -->
         <div class="info-fields">
-            <div class="info-row">
-                <span class="info-label">ক্রমিক নং:</span>
-                <span class="info-value">${project.invoice_no}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">তারিখ:</span>
-                <span class="info-value">${formatDate(new Date(), "dd/MM/yyyy")}</span>
+            <div class="info-row two-col">
+                <div class="info-col">
+                    <span class="info-label">ক্রমিক নং:</span>
+                    <span class="info-value">${project.invoice_no}</span>
+                </div>
+                <div class="info-col">
+                    <span class="info-label">তারিখ:</span>
+                    <span class="info-value">${formatDate(new Date(), "dd/MM/yyyy")}</span>
+                </div>
             </div>
             <div class="info-row two-col">
                 <div class="info-col">
@@ -495,52 +514,41 @@ export default function ProjectDetailPage({
                 </tr>
             </thead>
             <tbody>
+                ${project.items?.map(item => `
                 <tr>
                     <td>
-                        <strong>${project.title}</strong>
-                        ${project.details ? `<br><small>${stripHtml(project.details).substring(0, 150)}${stripHtml(project.details).length > 150 ? '...' : ''}</small>` : ''}
+                        <strong>${item.title}</strong>
+                        ${item.details ? `<br><small>${stripHtml(item.details).substring(0, 150)}${stripHtml(item.details).length > 150 ? '...' : ''}</small>` : ''}
                     </td>
-                    <td>১</td>
-                    <td>৳${project.total_cost.toFixed(0)}</td>
-                    <td><strong>৳${project.total_cost.toFixed(0)}</strong></td>
+                    <td>${toBanglaNumber(item.quantity)}</td>
+                    <td>৳${toBanglaNumber(item.rate.toFixed(0))}</td>
+                    <td><strong>৳${toBanglaNumber(item.amount?.toFixed(0) || (item.quantity * item.rate).toFixed(0))}</strong></td>
                 </tr>
+                `).join('') || `
+                <tr>
+                    <td><strong>${project.title}</strong></td>
+                    <td>১</td>
+                    <td>৳${toBanglaNumber(project.total_cost.toFixed(0))}</td>
+                    <td><strong>৳${toBanglaNumber(project.total_cost.toFixed(0))}</strong></td>
+                </tr>
+                `}
                 ${payments?.length ? payments.map(payment => `
                 <tr>
                     <td>পেমেন্ট (${formatDate(payment.payment_date, "dd/MM/yy")}) ${payment.note ? `- ${payment.note}` : ''}</td>
                     <td>-</td>
                     <td>-</td>
-                    <td style="color: green;">-৳${payment.amount.toFixed(0)}</td>
+                    <td style="color: green;">-৳${toBanglaNumber(payment.amount.toFixed(0))}</td>
                 </tr>
                 `).join('') : ''}
-                <!-- Empty rows for writing -->
-                <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
-                <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
-                <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
+                <!-- Empty rows for writing if needed -->
+                ${(project.items?.length || 0) < 3 ? '<tr><td>&nbsp;</td><td></td><td></td><td></td></tr>' : ''}
             </tbody>
         </table>
 
-        <!-- Totals -->
-        <div class="totals-area">
-            <div class="totals-box">
-                <div class="totals-row">
-                    <span>মোট:</span>
-                    <span>৳${project.total_cost.toFixed(0)}</span>
-                </div>
-                <div class="totals-row">
-                    <span>জমা:</span>
-                    <span>৳${project.paid_amount.toFixed(0)}</span>
-                </div>
-                <div class="totals-row">
-                    <span>বাকি:</span>
-                    <span>৳${project.pending_amount.toFixed(0)}</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Kothay -->
-        <div class="kothay-section">
-            <span class="kothay-label">কথায়:</span> 
-            <span>${numberToWords(project.pending_amount)} টাকা মাত্র</span>
+        <!-- Totals & Kothay Combined -->
+        <div class="totals-kothay-box">
+            <div class="totals-line">মোট: <strong>৳${project.total_cost.toFixed(0)}</strong> | জমা: <strong>৳${project.paid_amount.toFixed(0)}</strong> | বাকি: <strong>৳${project.pending_amount.toFixed(0)}</strong></div>
+            <div class="kothay-line"><strong>কথায়(জমা):</strong> ${numberToWords(project.paid_amount)} টাকা মাত্র</div>
         </div>
 
         <!-- Signatures with Tagline in center -->
@@ -819,6 +827,64 @@ export default function ProjectDetailPage({
                                 </div>
                             </>
                         )}
+
+                        <Separator />
+
+                        {/* Project Items Table */}
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-medium">Project Items (আইটেম তালিকা)</h3>
+                            <div className="border rounded-lg overflow-hidden">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-muted">
+                                        <tr>
+                                            <th className="px-4 py-2 text-left font-medium">বিবরণ</th>
+                                            <th className="px-4 py-2 text-center font-medium w-20">পরিমাণ</th>
+                                            <th className="px-4 py-2 text-right font-medium w-24">দর (৳)</th>
+                                            <th className="px-4 py-2 text-right font-medium w-32">টাকা (৳)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y">
+                                        {project.items && project.items.length > 0 ? (
+                                            project.items.map((item) => (
+                                                <tr key={item.id}>
+                                                    <td className="px-4 py-3">
+                                                        <p className="font-medium">{item.title}</p>
+                                                        {item.details && (
+                                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                                                {item.details}
+                                                            </p>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        {item.quantity}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right text-muted-foreground">
+                                                        {formatCurrency(item.rate)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-medium">
+                                                        {formatCurrency(item.amount || item.quantity * item.rate)}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td className="px-4 py-6 text-center text-muted-foreground" colSpan={4}>
+                                                    No items found for this project.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                    <tfoot className="bg-muted/50 border-t">
+                                        <tr>
+                                            <td className="px-4 py-2 font-medium" colSpan={3}>Total</td>
+                                            <td className="px-4 py-2 text-right font-bold text-lg">
+                                                {formatCurrency(project.total_cost)}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
                     </CardContent>
                 </Card>
 

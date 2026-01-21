@@ -61,6 +61,7 @@ export interface ProjectWithDetails extends Project {
     customer_address?: string | null;
     payment_count: number;
     last_payment_date?: string | null;
+    items?: ProjectItem[];
 }
 
 export interface CreateProjectInput {
@@ -75,9 +76,34 @@ export interface CreateProjectInput {
     client_received_by?: string;
     priority?: "high" | "mid" | "low";
     status?: "ongoing" | "pending" | "completed" | "cancelled" | "paused";
+    items?: CreateProjectItemInput[];
 }
 
 export type UpdateProjectInput = Partial<Omit<CreateProjectInput, "customer_id">>;
+
+// Project Item Types
+export interface ProjectItem {
+    id: string;
+    project_id: string;
+    title: string;
+    details?: string | null;
+    quantity: number;
+    rate: number;
+    amount: number;
+    sort_order: number;
+    created_at: string;
+}
+
+export interface CreateProjectItemInput {
+    project_id?: string; // Optional when creating with project
+    title: string;
+    details?: string;
+    quantity?: number;
+    rate?: number;
+    sort_order?: number;
+}
+
+export type UpdateProjectItemInput = Partial<Omit<CreateProjectItemInput, "project_id">>;
 
 // Payment Types
 export interface Payment {

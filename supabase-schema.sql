@@ -7,6 +7,7 @@
 DROP VIEW IF EXISTS public.dashboard_summary CASCADE;
 DROP VIEW IF EXISTS public.customers_with_stats CASCADE;
 DROP VIEW IF EXISTS public.projects_with_details CASCADE;
+DROP TABLE IF EXISTS public.project_items CASCADE;
 DROP TABLE IF EXISTS public.payments CASCADE;
 DROP TABLE IF EXISTS public.projects CASCADE;
 DROP TABLE IF EXISTS public.customers CASCADE;
@@ -15,8 +16,10 @@ DROP TABLE IF EXISTS public.settings CASCADE;
 
 -- Drop existing functions and triggers
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP TRIGGER IF EXISTS update_project_total_from_items ON public.project_items;
 DROP FUNCTION IF EXISTS public.handle_new_user();
 DROP FUNCTION IF EXISTS public.update_project_paid_amount();
+DROP FUNCTION IF EXISTS public.update_project_total_from_items();
 
 -- ============================================
 -- PROFILES TABLE
@@ -112,6 +115,58 @@ CREATE TRIGGER update_paid_amount
   FOR EACH ROW EXECUTE FUNCTION public.update_project_paid_amount();
 
 -- ============================================
+-- PROJECT ITEMS TABLE
+-- ============================================
+CREATE TABLE public.project_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  details TEXT,
+  quantity DECIMAL(10,2) DEFAULT 1,
+  rate DECIMAL(12,2) DEFAULT 0,
+  amount DECIMAL(12,2) GENERATED ALWAYS AS (quantity * rate) STORED,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create index for faster lookups
+CREATE INDEX idx_project_items_project_id ON public.project_items(project_id);
+
+-- Update total_cost when project items change
+CREATE OR REPLACE FUNCTION public.update_project_total_from_items()
+RETURNS TRIGGER AS $$
+DECLARE
+  new_total DECIMAL(12,2);
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    SELECT COALESCE(SUM(quantity * rate), 0) INTO new_total
+    FROM public.project_items 
+    WHERE project_id = OLD.project_id;
+    
+    UPDATE public.projects 
+    SET total_cost = new_total
+    WHERE id = OLD.project_id;
+    
+    RETURN OLD;
+  ELSE
+    SELECT COALESCE(SUM(quantity * rate), 0) INTO new_total
+    FROM public.project_items 
+    WHERE project_id = NEW.project_id;
+    
+    UPDATE public.projects 
+    SET total_cost = new_total
+    WHERE id = NEW.project_id;
+    
+    RETURN NEW;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_project_total_from_items
+  AFTER INSERT OR UPDATE OR DELETE ON public.project_items
+  FOR EACH ROW EXECUTE FUNCTION public.update_project_total_from_items();
+
+-- ============================================
 -- SETTINGS TABLE
 -- ============================================
 CREATE TABLE public.settings (
@@ -172,6 +227,7 @@ SELECT
 ALTER TABLE public.profiles DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customers DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.project_items DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
 
@@ -179,6 +235,7 @@ ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON public.profiles TO anon, authenticated;
 GRANT ALL ON public.customers TO anon, authenticated;
 GRANT ALL ON public.projects TO anon, authenticated;
+GRANT ALL ON public.project_items TO anon, authenticated;
 GRANT ALL ON public.payments TO anon, authenticated;
 GRANT ALL ON public.settings TO anon, authenticated;
 GRANT SELECT ON public.customers_with_stats TO anon, authenticated;
