@@ -4,6 +4,7 @@ import { Suspense, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useProjects, useDeleteProject } from "@/hooks/use-projects";
+import { createClient } from "@/lib/supabase/client";
 import { useDebounce } from "use-debounce";
 import { formatDate, formatCurrency, getStatusColor, getPriorityColor, truncateText, stripHtml } from "@/lib/utils";
 import type { ProjectFilters } from "@/lib/types";
@@ -20,8 +21,11 @@ import {
     X,
     Calendar,
     ChevronDown,
+    FileOutput,
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
 
 import { Button } from "@/components/ui/button";
@@ -84,8 +88,11 @@ function ProjectsList() {
         paymentStatus: "all",
         sortBy: "latest",
         customerId: customerId || undefined,
+        invoiceNo: "",
     });
     const [page, setPage] = useState(1);
+    const [invoiceSearch, setInvoiceSearch] = useState("");
+    const [debouncedInvoiceSearch] = useDebounce(invoiceSearch, 300);
     const [deleteId, setDeleteId] = useState<string | null>(null);
 
     // Calculate date range based on preset
@@ -122,37 +129,199 @@ function ProjectsList() {
         return {
             ...filters,
             search: debouncedSearch,
+            invoiceNo: debouncedInvoiceSearch,
             ...dateRange,
         };
-    }, [filters, debouncedSearch, datePreset, getDateRange]);
+    }, [filters, debouncedSearch, debouncedInvoiceSearch, datePreset, getDateRange]);
 
     const { data, isLoading, error } = useProjects(combinedFilters, page, 10);
     const deleteMutation = useDeleteProject();
 
-    const handleExport = useCallback(() => {
+    const handleExport = useCallback(async () => {
         if (!data?.data.length) return;
 
-        const exportData = data.data.map((project) => ({
-            Title: project.title,
-            Customer: project.customer_name || "",
-            Status: project.status,
-            Priority: project.priority,
-            "Start Date": project.start_date ? formatDate(project.start_date) : "",
-            "End Date": project.end_date ? formatDate(project.end_date) : "",
-            "Total Cost": project.total_cost,
-            "Paid Amount": project.paid_amount,
-            "Pending Amount": project.pending_amount,
-            "Project By": project.project_by || "",
-            "Client Received By": project.client_received_by || "",
-            "Invoice No": project.invoice_no,
-            Details: project.details ? stripHtml(project.details) : "",
-            "Created At": formatDate(project.created_at),
-        }));
+        // 1. Get all project IDs
+        const projectIds = data.data.map((p) => p.id);
+
+        // 2. Fetch items for these projects
+        const supabase = createClient();
+        const { data: allItems } = await supabase
+            .from("project_items")
+            .select("*")
+            .in("project_id", projectIds)
+            .order("sort_order", { ascending: true });
+
+        // 3. Group items by project
+        const itemsByProject: Record<string, any[]> = {};
+        if (allItems) {
+            allItems.forEach((item) => {
+                if (!itemsByProject[item.project_id]) {
+                    itemsByProject[item.project_id] = [];
+                }
+                itemsByProject[item.project_id].push(item);
+            });
+        }
+
+        // 4. Transform data for export including all fields
+        const exportData = data.data.map((project) => {
+            const projectItems = itemsByProject[project.id] || [];
+            const itemsString = projectItems
+                .map(
+                    (item) =>
+                        `${item.title} (Qty: ${item.quantity}, Rate: ${item.rate}, Amt: ${item.amount})`
+                )
+                .join(" | ");
+
+            return {
+                "Project ID": project.id,
+                "Invoice No": project.invoice_no,
+                "Title": project.title,
+                "Status": project.status,
+                "Priority": project.priority,
+                "Start Date": project.start_date ? formatDate(project.start_date) : "",
+                "End Date": project.end_date ? formatDate(project.end_date) : "",
+                "Total Cost": project.total_cost,
+                "Paid Amount": project.paid_amount,
+                "Pending Amount": project.pending_amount,
+                "Payment Count": project.payment_count,
+                "Last Payment Date": project.last_payment_date ? formatDate(project.last_payment_date) : "",
+                "Customer Name": project.customer_name || "",
+                "Customer Mobile": project.customer_mobile || "",
+                "Customer Email": project.customer_email || "",
+                "Customer Address": project.customer_address || "",
+                "Project By": project.project_by || "",
+                "Client Received By": project.client_received_by || "",
+                "Details": project.details ? stripHtml(project.details) : "",
+                "Project Items": itemsString,
+                "Created At": formatDate(project.created_at),
+                "Updated At": formatDate(project.updated_at),
+            };
+        });
 
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Projects");
         XLSX.writeFile(wb, `projects_${formatDate(new Date(), "yyyy-MM-dd")}.xlsx`);
+    }, [data]);
+
+    const handleExportPdf = useCallback(async () => {
+        if (!data?.data.length) return;
+
+        try {
+            // 1. Get all project IDs
+            const projectIds = data.data.map((p) => p.id);
+
+            // 2. Fetch items for these projects
+            const supabase = createClient();
+            const { data: allItems } = await supabase
+                .from("project_items")
+                .select("*")
+                .in("project_id", projectIds)
+                .order("sort_order", { ascending: true });
+
+            // 3. Group items by project
+            const itemsByProject: Record<string, any[]> = {};
+            if (allItems) {
+                allItems.forEach((item) => {
+                    if (!itemsByProject[item.project_id]) {
+                        itemsByProject[item.project_id] = [];
+                    }
+                    itemsByProject[item.project_id].push(item);
+                });
+            }
+
+            const doc = new jsPDF("l", "mm", "a4");
+
+            let fontLoaded = false;
+            // Load Bengali Font
+            try {
+                const fontUrl = "https://cdn.jsdelivr.net/gh/google/fonts/ofl/notosansbengali/NotoSansBengali-Regular.ttf";
+                const response = await fetch(fontUrl);
+
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch font: ${response.statusText}`);
+                }
+
+                const buffer = await response.arrayBuffer();
+
+                // Safer binary to base64 conversion
+                let binary = '';
+                const bytes = new Uint8Array(buffer);
+                const len = bytes.byteLength;
+                for (let i = 0; i < len; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                const base64Font = btoa(binary);
+
+                doc.addFileToVFS("NotoSansBengali-Regular.ttf", base64Font);
+                doc.addFont("NotoSansBengali-Regular.ttf", "NotoSansBengali", "normal");
+                doc.setFont("NotoSansBengali");
+                fontLoaded = true;
+            } catch (fontError) {
+                console.warn("Failed to load Bengali font, falling back to default:", fontError);
+            }
+
+            const tableData = data.data.map((project) => {
+                const projectItems = itemsByProject[project.id] || [];
+                const itemsString = projectItems
+                    .map((item) => `${item.title} (${item.quantity}x${item.rate})`)
+                    .join(", ");
+
+                return [
+                    project.invoice_no,
+                    project.title,
+                    project.customer_name || "-",
+                    project.status,
+                    formatDate(project.start_date),
+                    formatDate(project.end_date),
+                    formatCurrency(project.total_cost),
+                    formatCurrency(project.paid_amount),
+                    formatCurrency(project.pending_amount),
+                    itemsString,
+                ];
+            });
+
+            autoTable(doc, {
+                head: [
+                    [
+                        "Inv No",
+                        "Title",
+                        "Customer",
+                        "Status",
+                        "Start",
+                        "End",
+                        "Total",
+                        "Paid",
+                        "Due",
+                        "Items",
+                    ],
+                ],
+                body: tableData,
+                styles: {
+                    fontSize: 8,
+                    overflow: "linebreak",
+                    font: fontLoaded ? "NotoSansBengali" : "helvetica",
+                    fontStyle: "normal"
+                },
+                headStyles: { fillColor: [41, 128, 185] },
+                columnStyles: {
+                    0: { cellWidth: 15 }, // Invoice No
+                    1: { cellWidth: 35 }, // Title
+                    2: { cellWidth: 30 }, // Customer
+                    3: { cellWidth: 20 }, // Status
+                    4: { cellWidth: 25 }, // Start
+                    5: { cellWidth: 25 }, // End
+                    6: { cellWidth: 20 }, // Total
+                    7: { cellWidth: 20 }, // Paid
+                    8: { cellWidth: 20 }, // Due
+                    9: { cellWidth: "auto" }, // Items
+                },
+            });
+
+            doc.save(`projects_${formatDate(new Date(), "yyyy-MM-dd")}.pdf`);
+        } catch (error) {
+            console.error("Export failed:", error);
+        }
     }, [data]);
 
     const handleDelete = async () => {
@@ -187,6 +356,7 @@ function ProjectsList() {
 
     const hasActiveFilters =
         search ||
+        invoiceSearch ||
         filters.status !== "all" ||
         filters.priority !== "all" ||
         filters.paymentStatus !== "all" ||
@@ -221,6 +391,18 @@ function ProjectsList() {
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 className="pl-9"
+                            />
+                        </div>
+
+                        <div className="relative w-full max-w-sm lg:w-[200px]">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <span className="text-muted-foreground text-sm">#</span>
+                            </div>
+                            <Input
+                                placeholder="Invoice No..."
+                                value={invoiceSearch}
+                                onChange={(e) => setInvoiceSearch(e.target.value)}
+                                className="pl-8"
                             />
                         </div>
 
@@ -378,10 +560,16 @@ function ProjectsList() {
                                 </Button>
                             )}
 
-                            <Button variant="outline" onClick={handleExport}>
-                                <Download className="mr-2 h-4 w-4" />
-                                Export
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button variant="outline" onClick={handleExport}>
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Excel
+                                </Button>
+                                <Button variant="outline" onClick={handleExportPdf}>
+                                    <FileOutput className="mr-2 h-4 w-4" />
+                                    PDF
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </CardContent>
@@ -401,11 +589,13 @@ function ProjectsList() {
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead>Invoice</TableHead>
                                 <TableHead>Project</TableHead>
                                 <TableHead>Customer</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Amount</TableHead>
-                                <TableHead>Dates</TableHead>
+                                <TableHead>Start Date</TableHead>
+                                <TableHead>Delivery Date</TableHead>
                                 <TableHead className="w-[70px]"></TableHead>
                             </TableRow>
                         </TableHeader>
@@ -413,6 +603,9 @@ function ProjectsList() {
                             {isLoading
                                 ? Array.from({ length: 5 }).map((_, i) => (
                                     <TableRow key={i}>
+                                        <TableCell>
+                                            <Skeleton className="h-5 w-16" />
+                                        </TableCell>
                                         <TableCell>
                                             <div className="space-y-1">
                                                 <Skeleton className="h-4 w-40" />
@@ -432,6 +625,9 @@ function ProjectsList() {
                                             <Skeleton className="h-4 w-24" />
                                         </TableCell>
                                         <TableCell>
+                                            <Skeleton className="h-4 w-24" />
+                                        </TableCell>
+                                        <TableCell>
                                             <Skeleton className="h-8 w-8" />
                                         </TableCell>
                                     </TableRow>
@@ -439,12 +635,14 @@ function ProjectsList() {
                                 : data?.data.map((project) => (
                                     <TableRow key={project.id}>
                                         <TableCell>
+                                            <Badge variant="outline">
+                                                #{project.invoice_no}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
                                             <div>
                                                 <div className="flex items-center gap-2">
                                                     <p className="font-medium">{project.title}</p>
-                                                    <Badge variant="outline" className="text-xs">
-                                                        #{project.invoice_no}
-                                                    </Badge>
                                                 </div>
                                                 {project.details && (
                                                     <p className="text-sm text-muted-foreground line-clamp-1 mt-0.5">
@@ -497,15 +695,10 @@ function ProjectsList() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-sm text-muted-foreground">
-                                            <div>
-                                                {project.start_date && (
-                                                    <div>Start: {formatDate(project.start_date)}</div>
-                                                )}
-                                                {project.end_date && (
-                                                    <div>End: {formatDate(project.end_date)}</div>
-                                                )}
-                                                {!project.start_date && !project.end_date && "-"}
-                                            </div>
+                                            {project.start_date ? formatDate(project.start_date) : "-"}
+                                        </TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">
+                                            {project.end_date ? formatDate(project.end_date) : "-"}
                                         </TableCell>
                                         <TableCell>
                                             <DropdownMenu>
@@ -555,7 +748,7 @@ function ProjectsList() {
 
                             {!isLoading && data?.data.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-12">
+                                    <TableCell colSpan={7} className="text-center py-12">
                                         <div className="text-muted-foreground">
                                             <p className="text-lg font-medium">No projects found</p>
                                             <p className="text-sm mt-1">

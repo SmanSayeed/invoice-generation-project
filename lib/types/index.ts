@@ -173,6 +173,7 @@ export interface CustomerFilters {
 
 export interface ProjectFilters {
     search?: string;
+    invoiceNo?: string;
     status?: "ongoing" | "pending" | "completed" | "cancelled" | "paused" | "all";
     priority?: "high" | "mid" | "low" | "all";
     customerId?: string;

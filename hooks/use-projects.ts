@@ -35,6 +35,13 @@ export function useProjects(
                 );
             }
 
+            // Invoice number filter
+            if (filters.invoiceNo) {
+                // Cast invoice_no to text for partial matching
+                // Note: This relies on PostgREST syntax for casting
+                query = query.filter("invoice_no::text", "ilike", `%${filters.invoiceNo}%`);
+            }
+
             // Status filter
             if (filters.status && filters.status !== "all") {
                 query = query.eq("status", filters.status);

@@ -113,7 +113,10 @@ export default function EditProjectPage({
     useEffect(() => {
         if (!watchedItems) return;
 
-        const total = watchedItems.reduce((sum: number, item: any) => sum + (item.amount || 0), 0);
+        const total = watchedItems.reduce((sum: number, item: any) => {
+            return sum + ((item.quantity || 0) * (item.rate || 0));
+        }, 0);
+
         if (form.getValues("total_cost") !== total) {
             form.setValue("total_cost", total);
         }
@@ -366,8 +369,19 @@ export default function EditProjectPage({
                                                                             onChange={(e) => {
                                                                                 const val = parseFloat(e.target.value) || 0;
                                                                                 field.onChange(val);
-                                                                                const rate = form.getValues(`items.${index}.rate`) || 0;
-                                                                                form.setValue(`items.${index}.amount`, val * rate);
+
+                                                                                // Calculate row amount
+                                                                                const currentItems = form.getValues("items");
+                                                                                const rate = currentItems[index].rate || 0;
+                                                                                const amount = val * rate;
+                                                                                form.setValue(`items.${index}.amount`, amount);
+
+                                                                                // Calculate total cost
+                                                                                const total = currentItems.reduce((sum, item, i) => {
+                                                                                    if (i === index) return sum + amount;
+                                                                                    return sum + ((item.quantity || 0) * (item.rate || 0));
+                                                                                }, 0);
+                                                                                form.setValue("total_cost", total);
                                                                             }}
                                                                         />
                                                                     </FormControl>
@@ -390,8 +404,19 @@ export default function EditProjectPage({
                                                                             onChange={(e) => {
                                                                                 const val = parseFloat(e.target.value) || 0;
                                                                                 field.onChange(val);
-                                                                                const qty = form.getValues(`items.${index}.quantity`) || 0;
-                                                                                form.setValue(`items.${index}.amount`, qty * val);
+
+                                                                                // Calculate row amount
+                                                                                const currentItems = form.getValues("items");
+                                                                                const quantity = currentItems[index].quantity || 0;
+                                                                                const amount = quantity * val;
+                                                                                form.setValue(`items.${index}.amount`, amount);
+
+                                                                                // Calculate total cost
+                                                                                const total = currentItems.reduce((sum, item, i) => {
+                                                                                    if (i === index) return sum + amount;
+                                                                                    return sum + ((item.quantity || 0) * (item.rate || 0));
+                                                                                }, 0);
+                                                                                form.setValue("total_cost", total);
                                                                             }}
                                                                         />
                                                                     </FormControl>
