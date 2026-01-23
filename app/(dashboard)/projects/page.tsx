@@ -24,8 +24,6 @@ import {
     FileOutput,
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
 
 import { Button } from "@/components/ui/button";
@@ -230,95 +228,286 @@ function ProjectsList() {
                 });
             }
 
-            const doc = new jsPDF("l", "mm", "a4");
-
-            let fontLoaded = false;
-            // Load Bengali Font
-            try {
-                const fontUrl = "https://cdn.jsdelivr.net/gh/google/fonts/ofl/notosansbengali/NotoSansBengali-Regular.ttf";
-                const response = await fetch(fontUrl);
-
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch font: ${response.statusText}`);
-                }
-
-                const buffer = await response.arrayBuffer();
-
-                // Safer binary to base64 conversion
-                let binary = '';
-                const bytes = new Uint8Array(buffer);
-                const len = bytes.byteLength;
-                for (let i = 0; i < len; i++) {
-                    binary += String.fromCharCode(bytes[i]);
-                }
-                const base64Font = btoa(binary);
-
-                doc.addFileToVFS("NotoSansBengali-Regular.ttf", base64Font);
-                doc.addFont("NotoSansBengali-Regular.ttf", "NotoSansBengali", "normal");
-                doc.setFont("NotoSansBengali");
-                fontLoaded = true;
-            } catch (fontError) {
-                console.warn("Failed to load Bengali font, falling back to default:", fontError);
-            }
-
-            const tableData = data.data.map((project) => {
+            // Generate HTML-based PDF with proper Bangla font support
+            const projectRows = data.data.map((project) => {
                 const projectItems = itemsByProject[project.id] || [];
                 const itemsString = projectItems
                     .map((item) => `${item.title} (${item.quantity}x${item.rate})`)
                     .join(", ");
 
-                return [
-                    project.invoice_no,
-                    project.title,
-                    project.customer_name || "-",
-                    project.status,
-                    formatDate(project.start_date),
-                    formatDate(project.end_date),
-                    formatCurrency(project.total_cost),
-                    formatCurrency(project.paid_amount),
-                    formatCurrency(project.pending_amount),
-                    itemsString,
-                ];
-            });
+                return `
+                    <tr>
+                        <td>${project.invoice_no}</td>
+                        <td>${project.title}</td>
+                        <td>${project.customer_name || "-"}</td>
+                        <td><span class="status status-${project.status}">${project.status}</span></td>
+                        <td>${project.start_date ? formatDate(project.start_date) : "-"}</td>
+                        <td>${project.end_date ? formatDate(project.end_date) : "-"}</td>
+                        <td class="amount">${formatCurrency(project.total_cost)}</td>
+                        <td class="amount paid">${formatCurrency(project.paid_amount)}</td>
+                        <td class="amount due">${formatCurrency(project.pending_amount)}</td>
+                        <td class="items">${itemsString || "-"}</td>
+                    </tr>
+                `;
+            }).join("");
 
-            autoTable(doc, {
-                head: [
-                    [
-                        "Inv No",
-                        "Title",
-                        "Customer",
-                        "Status",
-                        "Start",
-                        "End",
-                        "Total",
-                        "Paid",
-                        "Due",
-                        "Items",
-                    ],
-                ],
-                body: tableData,
-                styles: {
-                    fontSize: 8,
-                    overflow: "linebreak",
-                    font: fontLoaded ? "NotoSansBengali" : "helvetica",
-                    fontStyle: "normal"
-                },
-                headStyles: { fillColor: [41, 128, 185] },
-                columnStyles: {
-                    0: { cellWidth: 15 }, // Invoice No
-                    1: { cellWidth: 35 }, // Title
-                    2: { cellWidth: 30 }, // Customer
-                    3: { cellWidth: 20 }, // Status
-                    4: { cellWidth: 25 }, // Start
-                    5: { cellWidth: 25 }, // End
-                    6: { cellWidth: 20 }, // Total
-                    7: { cellWidth: 20 }, // Paid
-                    8: { cellWidth: 20 }, // Due
-                    9: { cellWidth: "auto" }, // Items
-                },
-            });
+            // Calculate totals
+            const totalCost = data.data.reduce((sum, p) => sum + p.total_cost, 0);
+            const totalPaid = data.data.reduce((sum, p) => sum + p.paid_amount, 0);
+            const totalDue = data.data.reduce((sum, p) => sum + p.pending_amount, 0);
 
-            doc.save(`projects_${formatDate(new Date(), "yyyy-MM-dd")}.pdf`);
+            const pdfHtml = `
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projects Report - ${format(new Date(), "yyyy-MM-dd")}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        /* A4 Landscape: 297mm x 210mm */
+        @page {
+            size: A4 landscape;
+            margin: 8mm;
+        }
+        
+        body {
+            font-family: 'Noto Sans Bengali', sans-serif;
+            font-size: 9px;
+            line-height: 1.3;
+            color: #000;
+            background: #fff;
+            padding: 10px;
+        }
+        .report-container {
+            width: 277mm; /* A4 landscape width minus margins */
+            max-width: 100%;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1.5px solid #000;
+            padding-bottom: 6px;
+            margin-bottom: 8px;
+        }
+        .header-left h1 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+        .header-left p {
+            color: #666;
+            font-size: 9px;
+        }
+        .header-right {
+            text-align: right;
+        }
+        .header-right .date {
+            font-size: 10px;
+            font-weight: 600;
+        }
+        .header-right .count {
+            font-size: 9px;
+            color: #666;
+        }
+        
+        .table-container {
+            width: 100%;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8px;
+            table-layout: fixed;
+        }
+        th {
+            background: #1a1a1a;
+            color: #fff;
+            padding: 5px 4px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 8px;
+        }
+        /* Column widths optimized for A4 landscape */
+        th:nth-child(1), td:nth-child(1) { width: 6%; } /* Invoice No */
+        th:nth-child(2), td:nth-child(2) { width: 14%; } /* Title */
+        th:nth-child(3), td:nth-child(3) { width: 12%; } /* Customer */
+        th:nth-child(4), td:nth-child(4) { width: 7%; } /* Status */
+        th:nth-child(5), td:nth-child(5) { width: 8%; } /* Start */
+        th:nth-child(6), td:nth-child(6) { width: 8%; } /* End */
+        th:nth-child(7), td:nth-child(7) { width: 9%; } /* Total */
+        th:nth-child(8), td:nth-child(8) { width: 9%; } /* Paid */
+        th:nth-child(9), td:nth-child(9) { width: 9%; } /* Due */
+        th:nth-child(10), td:nth-child(10) { width: 18%; } /* Items */
+        
+        td {
+            padding: 4px;
+            border-bottom: 1px solid #ddd;
+            vertical-align: top;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        
+        .amount {
+            text-align: right;
+            white-space: nowrap;
+            font-size: 8px;
+        }
+        .paid { color: #059669; }
+        .due { color: #d97706; }
+        
+        .status {
+            display: inline-block;
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-size: 7px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-ongoing { background: #dbeafe; color: #1e40af; }
+        .status-completed { background: #d1fae5; color: #065f46; }
+        .status-paused { background: #e5e7eb; color: #374151; }
+        .status-cancelled { background: #fee2e2; color: #991b1b; }
+        
+        .items {
+            font-size: 7px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.2;
+        }
+        
+        .totals-row {
+            background: #f3f4f6 !important;
+            font-weight: 700;
+        }
+        .totals-row td {
+            border-top: 1.5px solid #000;
+            padding: 6px 4px;
+            font-size: 9px;
+        }
+        
+        .footer {
+            margin-top: 10px;
+            padding-top: 6px;
+            border-top: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            font-size: 8px;
+            color: #666;
+        }
+        
+        .print-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 8px 16px;
+            border: none;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Noto Sans Bengali', sans-serif;
+            border-radius: 4px;
+            z-index: 1000;
+        }
+        .print-btn:hover {
+            background: #333;
+        }
+        
+        @media print {
+            .print-btn { display: none; }
+            body { 
+                -webkit-print-color-adjust: exact; 
+                print-color-adjust: exact;
+                padding: 0;
+                font-size: 8px;
+            }
+            .report-container {
+                width: 100%;
+            }
+            table {
+                page-break-inside: auto;
+            }
+            tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+            thead {
+                display: table-header-group;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="print-btn" onclick="window.print()">প্রিন্ট / PDF ডাউনলোড</button>
+    
+    <div class="report-container">
+        <div class="header">
+            <div class="header-left">
+                <h1>প্রিপোর্ট</h1>
+                <p>Report</p>
+            </div>
+            <div class="header-right">
+                <div class="date">${format(new Date(), "dd MMM yyyy")}</div>
+                <div class="count">মোট প্রজেক্ট: ${data.data.length}</div>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ইনভয়েস নং</th>
+                        <th>শিরোনাম</th>
+                        <th>গ্রাহক</th>
+                        <th>স্ট্যাটাস</th>
+                        <th>শুরু</th>
+                        <th>শেষ</th>
+                        <th style="text-align: right;">মোট</th>
+                        <th style="text-align: right;">জমা</th>
+                        <th style="text-align: right;">বাকি</th>
+                        <th>আইটেম</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${projectRows}
+                    <tr class="totals-row">
+                        <td colspan="6" style="text-align: right;"><strong>মোট:</strong></td>
+                        <td class="amount">${formatCurrency(totalCost)}</td>
+                        <td class="amount paid">${formatCurrency(totalPaid)}</td>
+                        <td class="amount due">${formatCurrency(totalDue)}</td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="footer">
+            <div>Generated on ${format(new Date(), "dd/MM/yyyy HH:mm")}</div>
+            <div>সিয়াম প্রিন্টিং প্রেস</div>
+        </div>
+    </div>
+</body>
+</html>
+            `;
+
+            // Open in new window for printing
+            const printWindow = window.open('', '_blank');
+            if (printWindow) {
+                printWindow.document.write(pdfHtml);
+                printWindow.document.close();
+            }
         } catch (error) {
             console.error("Export failed:", error);
         }
