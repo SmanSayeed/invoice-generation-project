@@ -25,7 +25,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+
 
 // Services list - 16 items for 2 columns (8x8)
 const services = [
@@ -152,9 +152,9 @@ export default function HomePage() {
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-[300px] sm:w-[400px] bg-gray-900 border-r border-gray-800">
-                <VisuallyHidden>
+                <span className="sr-only">
                   <SheetTitle>Mobile Navigation Menu</SheetTitle>
-                </VisuallyHidden>
+                </span>
                 <div className="flex flex-col gap-6 py-8">
                   <div className="px-2 bg-white rounded-lg w-fit p-2">
                     <img
