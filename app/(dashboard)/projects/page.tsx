@@ -571,7 +571,7 @@ function ProjectsList() {
 
             {/* Filters */}
             <Card>
-                <CardContent className="py-4">
+                <CardContent className="py-1">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -594,7 +594,11 @@ function ProjectsList() {
                                 className="pl-8"
                             />
                         </div>
-
+                        </div>
+                </CardContent>
+                <CardContent className="py-2">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+                        
                         <div className="flex flex-wrap gap-2">
                             <Select
                                 value={filters.status}

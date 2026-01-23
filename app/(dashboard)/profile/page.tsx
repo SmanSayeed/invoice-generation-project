@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2, Save, User, Lock } from "lucide-react";
+import { Loader2, Save, User, Lock, Mail } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,13 +26,15 @@ import {
     FormItem,
     FormLabel,
     FormMessage,
+    FormDescription,
 } from "@/components/ui/form";
-import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { getInitials } from "@/lib/utils";
 
-const profileSchema = z.object({
+// Separate schemas for independent updates
+const nameSchema = z.object({
     name: z.string().min(1, "Name is required"),
+});
+
+const emailSchema = z.object({
     email: z.string().email("Invalid email"),
 });
 
@@ -47,21 +49,32 @@ const passwordSchema = z
         path: ["confirmPassword"],
     });
 
-type ProfileFormValues = z.infer<typeof profileSchema>;
+type NameFormValues = z.infer<typeof nameSchema>;
+type EmailFormValues = z.infer<typeof emailSchema>;
 type PasswordFormValues = z.infer<typeof passwordSchema>;
 
 export default function ProfilePage() {
     const router = useRouter();
     const supabase = createClient();
-    const { user, profile } = useAuthStore();
-    const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+    const { user, profile, setProfile } = useAuthStore();
+
+    // Separate loading states
+    const [isUpdatingName, setIsUpdatingName] = useState(false);
+    const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
     const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
-    const profileForm = useForm<ProfileFormValues>({
-        resolver: zodResolver(profileSchema),
+    // Separate forms
+    const nameForm = useForm<NameFormValues>({
+        resolver: zodResolver(nameSchema),
         defaultValues: {
             name: profile?.name || user?.email?.split("@")[0] || "",
-            email: user?.email || "",
+        },
+    });
+
+    const emailForm = useForm<EmailFormValues>({
+        resolver: zodResolver(emailSchema),
+        defaultValues: {
+            email: profile?.email || user?.email || "",
         },
     });
 
@@ -74,50 +87,171 @@ export default function ProfilePage() {
         },
     });
 
-    async function onProfileSubmit(data: ProfileFormValues) {
-        setIsUpdatingProfile(true);
+    // Fetch user and profile on mount
+    useEffect(() => {
+        async function loadUserAndProfile() {
+            // First, get the current user from Supabase session
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+            if (!currentUser) {
+                console.log("No user found in session");
+                return;
+            }
+
+            // Update auth store if user not set
+            if (!user) {
+                useAuthStore.getState().setUser(currentUser);
+            }
+
+            // Fetch profile from DB
+            try {
+                const { data, error } = await supabase
+                    .from("profiles")
+                    .select("*")
+                    .eq("id", currentUser.id)
+                    .single();
+
+                if (data && !error) {
+                    setProfile(data);
+                    // Update forms with DB data
+                    nameForm.reset({ name: data.name || currentUser.email?.split("@")[0] || "" });
+                    emailForm.reset({ email: data.email || currentUser.email || "" });
+                } else {
+                    // No profile, use user email as defaults
+                    nameForm.reset({ name: currentUser.email?.split("@")[0] || "" });
+                    emailForm.reset({ email: currentUser.email || "" });
+                }
+            } catch (error) {
+                console.error("Error loading profile:", error);
+                // Fallback to user email
+                nameForm.reset({ name: currentUser.email?.split("@")[0] || "" });
+                emailForm.reset({ email: currentUser.email || "" });
+            }
+        }
+
+        loadUserAndProfile();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Update forms when profile changes (from other sources)
+    useEffect(() => {
+        if (profile?.name) {
+            nameForm.reset({ name: profile.name });
+        }
+    }, [profile?.name]);
+
+    useEffect(() => {
+        if (profile?.email) {
+            emailForm.reset({ email: profile.email });
+        }
+    }, [profile?.email]);
+
+    // Handle Name Update
+    async function onNameSubmit(data: NameFormValues) {
+        setIsUpdatingName(true);
         try {
-            // Update profile in profiles table
             if (user) {
                 const { error: profileError } = await supabase
                     .from("profiles")
-                    .update({ name: data.name, email: data.email })
-                    .eq("id", user.id);
+                    .upsert({
+                        id: user.id,
+                        name: data.name,
+                        // Preserve existing email if any, or default to input? 
+                        // Actually, upsert needs all fields OR we should use update if row exists?
+                        // But we want to handle "new user" case too.
+                        // Best strategy: Upsert with all current known values.
+                        email: profile?.email || user.email
+                    });
 
                 if (profileError) throw profileError;
+
+                // Sync local store
+                setProfile({
+                    id: user.id,
+                    created_at: profile?.created_at || new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    avatar_url: profile?.avatar_url || null,
+                    name: data.name,
+                    email: profile?.email || user.email // Keep existing email
+                });
             }
 
-            // Update email if changed
-            if (data.email !== user?.email) {
-                const { error } = await supabase.auth.updateUser({
-                    email: data.email,
-                });
-                if (error) throw error;
-                toast.success("Profile updated", {
-                    description: "Check your email to confirm the change",
-                });
-            } else {
-                toast.success("Profile updated successfully");
-            }
-
+            toast.success("Name updated successfully");
             router.refresh();
         } catch (error: any) {
-            toast.error("Failed to update profile", {
+            toast.error("Failed to update name", {
                 description: error.message,
             });
         } finally {
-            setIsUpdatingProfile(false);
+            setIsUpdatingName(false);
+        }
+    }
+
+    // Handle Email Update - Updates login email via database function
+    async function onEmailSubmit(data: EmailFormValues) {
+        setIsUpdatingEmail(true);
+        try {
+            // Call the database function to update auth.users email
+            const { data: result, error } = await supabase
+                .rpc('update_user_email', { new_email: data.email });
+
+            console.log("RPC result:", result, "error:", error);
+
+            if (error) {
+                console.error("RPC error:", error);
+                throw error;
+            }
+
+            // Sync local store
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            if (currentUser) {
+                setProfile({
+                    id: currentUser.id,
+                    created_at: profile?.created_at || new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    avatar_url: profile?.avatar_url || null,
+                    name: profile?.name || data.email.split("@")[0],
+                    email: data.email
+                });
+            }
+
+            toast.success("Login email updated successfully. Please use the new email to login next time.");
+            router.refresh();
+        } catch (error: any) {
+            console.error("Email update error:", error);
+            toast.error("Failed to update email", {
+                description: error?.message || JSON.stringify(error),
+            });
+        } finally {
+            setIsUpdatingEmail(false);
         }
     }
 
     async function onPasswordSubmit(data: PasswordFormValues) {
         setIsUpdatingPassword(true);
         try {
-            const { error } = await supabase.auth.updateUser({
+            // Get current user email
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            if (!currentUser?.email) {
+                throw new Error("User session not found. Please login again.");
+            }
+
+            // Step 1: Verify current password by attempting to sign in
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+                email: currentUser.email,
+                password: data.currentPassword,
+            });
+
+            if (signInError) {
+                throw new Error("Current password is incorrect");
+            }
+
+            // Step 2: If current password is correct, update to new password
+            const { error: updateError } = await supabase.auth.updateUser({
                 password: data.newPassword,
             });
 
-            if (error) throw error;
+            if (updateError) throw updateError;
 
             toast.success("Password updated successfully");
             passwordForm.reset();
@@ -140,117 +274,150 @@ export default function ProfilePage() {
                 </p>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-3">
-                {/* Profile Card */}
-                <Card className="lg:col-span-1">
-                    <CardContent className="pt-6">
-                        <div className="flex flex-col items-center text-center">
-                            <Avatar className="h-24 w-24">
-                                <AvatarFallback className="bg-gradient-to-br from-violet-500 to-purple-600 text-white text-2xl">
-                                    {getInitials(profile?.name || user?.email)}
-                                </AvatarFallback>
-                            </Avatar>
-                            <h2 className="mt-4 text-xl font-semibold">
-                                {profile?.name || user?.email?.split("@")[0]}
-                            </h2>
-                            <p className="text-sm text-muted-foreground">{user?.email}</p>
-                            <p className="text-xs text-muted-foreground mt-2">Administrator</p>
+            <div className="space-y-6">
+
+                {/* Name Form */}
+                <Card>
+                    <CardHeader>
+                        <div className="flex items-center gap-2">
+                            <User className="h-5 w-5 text-muted-foreground" />
+                            <CardTitle>Display Name</CardTitle>
                         </div>
+                    </CardHeader>
+                    <CardContent>
+                        <Form {...nameForm}>
+                            <form
+                                onSubmit={nameForm.handleSubmit(onNameSubmit)}
+                                className="space-y-4"
+                            >
+                                <FormField
+                                    control={nameForm.control}
+                                    name="name"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Name</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder="Your name" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <div className="flex justify-end">
+                                    <Button type="submit" disabled={isUpdatingName}>
+                                        {isUpdatingName ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Saving...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Save className="mr-2 h-4 w-4" />
+                                                Save Name
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            </form>
+                        </Form>
                     </CardContent>
                 </Card>
 
-                {/* Forms */}
-                <div className="space-y-6 lg:col-span-2">
-                    {/* Profile Form */}
-                    <Card>
-                        <CardHeader>
-                            <div className="flex items-center gap-2">
-                                <User className="h-5 w-5 text-muted-foreground" />
-                                <CardTitle>Personal Information</CardTitle>
-                            </div>
-                            <CardDescription>Update your profile details</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Form {...profileForm}>
-                                <form
-                                    onSubmit={profileForm.handleSubmit(onProfileSubmit)}
-                                    className="space-y-4"
-                                >
-                                    <div className="grid gap-4 sm:grid-cols-2">
-                                        <FormField
-                                            control={profileForm.control}
-                                            name="name"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Name</FormLabel>
-                                                    <FormControl>
-                                                        <Input placeholder="Your name" {...field} />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={profileForm.control}
-                                            name="email"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Email</FormLabel>
-                                                    <FormControl>
-                                                        <Input
-                                                            type="email"
-                                                            placeholder="your@email.com"
-                                                            {...field}
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </div>
-                                    <div className="flex justify-end">
-                                        <Button type="submit" disabled={isUpdatingProfile}>
-                                            {isUpdatingProfile ? (
-                                                <>
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                    Saving...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Save className="mr-2 h-4 w-4" />
-                                                    Save Changes
-                                                </>
-                                            )}
-                                        </Button>
-                                    </div>
-                                </form>
-                            </Form>
-                        </CardContent>
-                    </Card>
+                {/* Email Form */}
+                <Card>
+                    <CardHeader>
+                        <div className="flex items-center gap-2">
+                            <Mail className="h-5 w-5 text-muted-foreground" />
+                            <CardTitle>Email Address</CardTitle>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <Form {...emailForm}>
+                            <form
+                                onSubmit={emailForm.handleSubmit(onEmailSubmit)}
+                                className="space-y-4"
+                            >
+                                <FormField
+                                    control={emailForm.control}
+                                    name="email"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Email</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    type="email"
+                                                    placeholder="your@email.com"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormDescription>
+                                                Different from login email
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <div className="flex justify-end">
+                                    <Button type="submit" disabled={isUpdatingEmail}>
+                                        {isUpdatingEmail ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Saving...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Save className="mr-2 h-4 w-4" />
+                                                Save Email
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            </form>
+                        </Form>
+                    </CardContent>
+                </Card>
 
-                    {/* Password Form */}
-                    <Card>
-                        <CardHeader>
-                            <div className="flex items-center gap-2">
-                                <Lock className="h-5 w-5 text-muted-foreground" />
-                                <CardTitle>Change Password</CardTitle>
-                            </div>
-                            <CardDescription>
-                                Update your password to keep your account secure
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Form {...passwordForm}>
-                                <form
-                                    onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}
-                                    className="space-y-4"
-                                >
+                {/* Password Form */}
+                <Card>
+                    <CardHeader>
+                        <div className="flex items-center gap-2">
+                            <Lock className="h-5 w-5 text-muted-foreground" />
+                            <CardTitle>Change Password</CardTitle>
+                        </div>
+                        <CardDescription>
+                            Update your password to keep your account secure
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Form {...passwordForm}>
+                            <form
+                                onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}
+                                className="space-y-4"
+                            >
+                                <FormField
+                                    control={passwordForm.control}
+                                    name="currentPassword"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Current Password</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    type="password"
+                                                    placeholder="••••••••"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <div className="grid gap-4 sm:grid-cols-2">
                                     <FormField
                                         control={passwordForm.control}
-                                        name="currentPassword"
+                                        name="newPassword"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Current Password</FormLabel>
+                                                <FormLabel>New Password</FormLabel>
                                                 <FormControl>
                                                     <Input
                                                         type="password"
@@ -262,59 +429,40 @@ export default function ProfilePage() {
                                             </FormItem>
                                         )}
                                     />
-                                    <div className="grid gap-4 sm:grid-cols-2">
-                                        <FormField
-                                            control={passwordForm.control}
-                                            name="newPassword"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>New Password</FormLabel>
-                                                    <FormControl>
-                                                        <Input
-                                                            type="password"
-                                                            placeholder="••••••••"
-                                                            {...field}
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={passwordForm.control}
-                                            name="confirmPassword"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>Confirm Password</FormLabel>
-                                                    <FormControl>
-                                                        <Input
-                                                            type="password"
-                                                            placeholder="••••••••"
-                                                            {...field}
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </div>
-                                    <div className="flex justify-end">
-                                        <Button type="submit" disabled={isUpdatingPassword}>
-                                            {isUpdatingPassword ? (
-                                                <>
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                    Updating...
-                                                </>
-                                            ) : (
-                                                "Update Password"
-                                            )}
-                                        </Button>
-                                    </div>
-                                </form>
-                            </Form>
-                        </CardContent>
-                    </Card>
-                </div>
+                                    <FormField
+                                        control={passwordForm.control}
+                                        name="confirmPassword"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Confirm Password</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="password"
+                                                        placeholder="••••••••"
+                                                        {...field}
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                                <div className="flex justify-end">
+                                    <Button type="submit" disabled={isUpdatingPassword}>
+                                        {isUpdatingPassword ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Updating...
+                                            </>
+                                        ) : (
+                                            "Update Password"
+                                        )}
+                                    </Button>
+                                </div>
+                            </form>
+                        </Form>
+                    </CardContent>
+                </Card>
             </div>
         </div>
     );

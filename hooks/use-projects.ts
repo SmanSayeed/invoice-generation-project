@@ -37,9 +37,11 @@ export function useProjects(
 
             // Invoice number filter
             if (filters.invoiceNo) {
-                // Cast invoice_no to text for partial matching
-                // Note: This relies on PostgREST syntax for casting
-                query = query.filter("invoice_no::text", "ilike", `%${filters.invoiceNo}%`);
+                // Try to parse as number for exact match
+                const invoiceNum = parseInt(filters.invoiceNo, 10);
+                if (!isNaN(invoiceNum)) {
+                    query = query.eq("invoice_no", invoiceNum);
+                }
             }
 
             // Status filter
@@ -64,12 +66,12 @@ export function useProjects(
                 query = query.gt("pending_amount", 0);
             }
 
-            // Date filters
+            // Date filters (based on start_date)
             if (filters.dateFrom) {
-                query = query.gte("created_at", filters.dateFrom);
+                query = query.gte("start_date", filters.dateFrom);
             }
             if (filters.dateTo) {
-                query = query.lte("created_at", filters.dateTo);
+                query = query.lte("start_date", filters.dateTo);
             }
 
             // Sorting

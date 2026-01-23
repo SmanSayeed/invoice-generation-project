@@ -16,10 +16,10 @@ DROP TABLE IF EXISTS public.settings CASCADE;
 
 -- Drop existing functions and triggers
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-DROP TRIGGER IF EXISTS update_project_total_from_items ON public.project_items;
 DROP FUNCTION IF EXISTS public.handle_new_user();
 DROP FUNCTION IF EXISTS public.update_project_paid_amount();
 DROP FUNCTION IF EXISTS public.update_project_total_from_items();
+DROP FUNCTION IF EXISTS public.update_user_email(TEXT);
 
 -- ============================================
 -- PROFILES TABLE
@@ -27,15 +27,22 @@ DROP FUNCTION IF EXISTS public.update_project_total_from_items();
 CREATE TABLE public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   name TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  email TEXT,
+  avatar_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Simple trigger for new users
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, name)
-  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)))
+  INSERT INTO public.profiles (id, name, email)
+  VALUES (
+    NEW.id, 
+    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+    NEW.email
+  )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
@@ -46,6 +53,37 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- ============================================
+-- FUNCTION TO UPDATE LOGIN EMAIL
+-- Allows updating auth.users email from dashboard
+-- ============================================
+CREATE OR REPLACE FUNCTION public.update_user_email(new_email TEXT)
+RETURNS BOOLEAN AS $$
+BEGIN
+    -- Update the auth.users email for current user
+    UPDATE auth.users 
+    SET 
+        email = new_email,
+        updated_at = NOW()
+    WHERE id = auth.uid();
+    
+    -- Also update the profiles table to keep in sync
+    UPDATE public.profiles 
+    SET 
+        email = new_email,
+        updated_at = NOW()
+    WHERE id = auth.uid();
+    
+    RETURN TRUE;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION public.update_user_email(TEXT) TO authenticated;
+
+-- ============================================
 -- CUSTOMERS TABLE
 -- ============================================
 CREATE TABLE public.customers (
@@ -54,6 +92,11 @@ CREATE TABLE public.customers (
   mobile TEXT NOT NULL,
   email TEXT,
   address TEXT,
+  details TEXT,
+  added_by TEXT,
+  referred_by TEXT,
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  tag TEXT DEFAULT 'normal' CHECK (tag IN ('special', 'normal')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -222,8 +265,10 @@ SELECT
   (SELECT COALESCE(SUM(pending_amount), 0) FROM public.projects)::DECIMAL AS pending_amount;
 
 -- ============================================
--- DISABLE RLS (SIMPLE MODE)
+-- RLS CONFIGURATION - ALL DISABLED FOR SIMPLICITY
 -- ============================================
+
+-- Disable RLS on all tables for simplicity
 ALTER TABLE public.profiles DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customers DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects DISABLE ROW LEVEL SECURITY;
@@ -231,7 +276,7 @@ ALTER TABLE public.project_items DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
 
--- Grant all access
+-- Grant all access (RLS will restrict profiles)
 GRANT ALL ON public.profiles TO anon, authenticated;
 GRANT ALL ON public.customers TO anon, authenticated;
 GRANT ALL ON public.projects TO anon, authenticated;

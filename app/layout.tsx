@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Hind_Siliguri } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
@@ -10,10 +10,16 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+const hindSiliguri = Hind_Siliguri({
+  variable: "--font-hind-siliguri",
+  subsets: ["bengali", "latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
+
 export const metadata: Metadata = {
-  title: "Invoice Generator | Admin Panel",
-  description: "Dynamic Invoice Generation System for managing customers, projects, and invoices",
-  keywords: ["invoice", "billing", "admin panel", "project management"],
+  title: "Siyam Printing Press & Paper House",
+  description: "সিয়াম প্রিন্টিং প্রেস এন্ড পেপার হাউজ - Complete printing service in Madan, Netrokona",
+  keywords: ["printing", "press", "paper house", "madan", "netrokona", "প্রিন্টিং", "প্রেস"],
 };
 
 export default function RootLayout({
@@ -23,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
+      <body className={`${inter.variable} ${hindSiliguri.variable} font-sans antialiased`} suppressHydrationWarning>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

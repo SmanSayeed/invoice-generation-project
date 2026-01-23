@@ -80,12 +80,13 @@ export default function LoginPage() {
         <div className="relative z-10 w-full max-w-md px-4">
             <Card className="border-0 bg-white/10 backdrop-blur-xl shadow-2xl">
                 <CardHeader className="space-y-1 text-center">
-                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg">
-                        <LogIn className="h-8 w-8 text-white" />
+                    <div className="mx-auto mb-4 rounded-lg bg-white p-3 shadow-lg">
+                        <img
+                            src="/images/full-logo.png"
+                            alt="Siyam Printing Press & Paper House"
+                            className="h-12 w-auto"
+                        />
                     </div>
-                    <CardTitle className="text-2xl font-bold text-white">
-                        Invoice Generator
-                    </CardTitle>
                     <CardDescription className="text-gray-300">
                         Enter your credentials to access the admin panel
                     </CardDescription>
@@ -156,9 +157,7 @@ export default function LoginPage() {
                     </Form>
                 </CardContent>
             </Card>
-            <p className="mt-4 text-center text-sm text-gray-400">
-                Demo: a@a.com / 11112222
-            </p>
+
         </div>
     );
 }

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -20,6 +21,7 @@ import {
     Sun,
     Menu,
     X,
+    UserCog,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
@@ -52,6 +54,11 @@ const navItems = [
 ];
 
 const bottomNavItems = [
+    {
+        title: "Profile",
+        href: "/profile",
+        icon: UserCog,
+    },
     {
         title: "Settings",
         href: "/settings",
@@ -149,19 +156,32 @@ export function Sidebar() {
                 {/* Logo */}
                 <div className="flex h-16 items-center justify-between border-b px-4">
                     {!sidebarCollapsed && (
-                        <Link href="/dashboard" className="flex items-center gap-2">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-purple-600">
-                                <FileText className="h-4 w-4 text-white" />
+                        <Link href="/dashboard" className="flex items-center">
+                            <div className="rounded-lg bg-white dark:bg-gradient-to-br dark:from-gray-100 dark:to-gray-200 p-1.5 shadow-sm">
+                                <Image
+                                    src="/images/full-logo.png"
+                                    alt="Siyam Printing Press"
+                                    width={180}
+                                    height={40}
+                                    className="h-9 w-auto object-contain"
+                                    priority
+                                />
                             </div>
-                            <span className="font-bold text-lg bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">
-                                InvoiceGen
-                            </span>
                         </Link>
                     )}
                     {sidebarCollapsed && (
-                        <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-purple-600">
-                            <FileText className="h-4 w-4 text-white" />
-                        </div>
+                        <Link href="/dashboard" className="mx-auto flex items-center justify-center">
+                            <div className="rounded-md bg-white dark:bg-gradient-to-br dark:from-gray-100 dark:to-gray-200 p-1 shadow-sm">
+                                <Image
+                                    src="/images/full-logo.png"
+                                    alt="Siyam Printing Press"
+                                    width={40}
+                                    height={40}
+                                    className="h-7 w-auto object-contain"
+                                    priority
+                                />
+                            </div>
+                        </Link>
                     )}
                     <Button
                         variant="ghost"
@@ -292,11 +312,13 @@ export function Header() {
             <div className="flex-1" />
 
             <div className="flex items-center gap-3">
-                <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-gradient-to-br from-violet-600 to-purple-600 text-white text-sm">
-                        AD
-                    </AvatarFallback>
-                </Avatar>
+                <Link href="/profile">
+                    <Avatar className="h-8 w-8 cursor-pointer hover:ring-2 hover:ring-primary hover:ring-offset-2 transition-all">
+                        <AvatarFallback className="bg-gradient-to-br from-violet-600 to-purple-600 text-white text-sm">
+                            AD
+                        </AvatarFallback>
+                    </Avatar>
+                </Link>
             </div>
         </header>
     );
