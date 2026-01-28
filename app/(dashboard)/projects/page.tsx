@@ -80,15 +80,17 @@ function ProjectsList() {
     const [search, setSearch] = useState("");
     const [debouncedSearch] = useDebounce(search, 300);
 
-    // Removed local datePreset states as they are now managed by filters directly or inside the modal
+    // Initial filters from URL
     const [filters, setFilters] = useState<ProjectFilters>({
-        status: "all",
+        status: (searchParams.get("status") as ProjectFilters["status"]) || "all",
         priority: "all",
         paymentStatus: "all",
         sortBy: "latest",
         customerId: customerId || undefined,
         invoiceNo: "",
-        dateField: "created_at",
+        dateField: (searchParams.get("dateField") as ProjectFilters["dateField"]) || "created_at",
+        dateFrom: searchParams.get("dateFrom") || undefined,
+        dateTo: searchParams.get("dateTo") || undefined,
     });
     const [page, setPage] = useState(1);
     const [invoiceSearch, setInvoiceSearch] = useState("");

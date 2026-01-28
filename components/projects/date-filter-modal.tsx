@@ -101,12 +101,38 @@ export function DateFilterModal({ filters, onApply, onClear }: DateFilterModalPr
 
     const hasActiveDateFilter = !!filters.dateFrom || !!filters.dateTo;
 
+    const getButtonLabel = () => {
+        if (!filters.dateFrom && !filters.dateTo) return "Filter Date";
+
+        const from = filters.dateFrom;
+        const to = filters.dateTo;
+
+        if (from && to) {
+            if (from === to) {
+                // Check if it's today or yesterday for nicer labels
+                const today = format(new Date(), "yyyy-MM-dd");
+                const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
+                if (from === today) return "Today";
+                if (from === yesterday) return "Yesterday";
+                return format(new Date(from), "MMM dd, yyyy");
+            }
+            return `${format(new Date(from), "MMM dd")} - ${format(new Date(to), "MMM dd")}`;
+        }
+
+        if (from) return `From ${format(new Date(from), "MMM dd")}`;
+        if (to) return `Until ${format(new Date(to), "MMM dd")}`;
+
+        return "Date Filtered";
+    };
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant={hasActiveDateFilter ? "secondary" : "outline"} className="gap-2">
-                    <CalendarIcon className="h-4 w-4" />
-                    {hasActiveDateFilter ? "Date Filtered" : "Filter Date"}
+                <Button variant={hasActiveDateFilter ? "secondary" : "outline"} className="gap-2 min-w-[130px] justify-between">
+                    <div className="flex items-center gap-2">
+                        <CalendarIcon className="h-4 w-4" />
+                        <span>{getButtonLabel()}</span>
+                    </div>
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">

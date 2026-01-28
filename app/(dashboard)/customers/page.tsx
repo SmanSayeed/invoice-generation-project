@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCustomers, useDeleteCustomer } from "@/hooks/use-customers";
 import { useDebounce } from "use-debounce";
 import { formatDate, getInitials } from "@/lib/utils";
@@ -70,14 +71,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 type DatePreset = "all" | "today" | "week" | "month" | "custom";
 
 export default function CustomersPage() {
+    const searchParams = useSearchParams();
+    const urlDateFrom = searchParams.get("dateFrom") || "";
+    const urlDateTo = searchParams.get("dateTo") || "";
+    const hasUrlDate = !!urlDateFrom || !!urlDateTo;
+
     const [search, setSearch] = useState("");
     const [debouncedSearch] = useDebounce(search, 300);
-    const [datePreset, setDatePreset] = useState<DatePreset>("all");
-    const [customDateFrom, setCustomDateFrom] = useState("");
-    const [customDateTo, setCustomDateTo] = useState("");
+    const [datePreset, setDatePreset] = useState<DatePreset>(hasUrlDate ? "custom" : "all");
+    const [customDateFrom, setCustomDateFrom] = useState(urlDateFrom);
+    const [customDateTo, setCustomDateTo] = useState(urlDateTo);
     const [filters, setFilters] = useState<CustomerFilters>({
-        status: "all",
-        tag: "all",
+        status: (searchParams.get("status") as CustomerFilters["status"]) || "all",
+        tag: (searchParams.get("tag") as CustomerFilters["tag"]) || "all",
         sortBy: "latest",
     });
     const [page, setPage] = useState(1);

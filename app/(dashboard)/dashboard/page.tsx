@@ -1,8 +1,10 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
-import type { DashboardSummary } from "@/lib/types";
+import { useState } from "react";
+import Link from "next/link";
+import { useDashboardStats } from "@/hooks/use-dashboard-stats";
+import { DateFilterModal } from "@/components/projects/date-filter-modal";
+import type { ProjectFilters } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import {
     Users,
@@ -14,23 +16,8 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-
-function useDashboardStats() {
-    const supabase = createClient();
-
-    return useQuery({
-        queryKey: ["dashboard-stats"],
-        queryFn: async (): Promise<DashboardSummary> => {
-            const { data, error } = await supabase
-                .from("dashboard_summary")
-                .select("*")
-                .single();
-
-            if (error) throw error;
-            return data;
-        },
-    });
-}
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 
 interface StatCardProps {
     title: string;
@@ -40,6 +27,7 @@ interface StatCardProps {
     trend?: number;
     variant?: "default" | "primary" | "success" | "warning";
     isLoading?: boolean;
+    href?: string;
 }
 
 function StatCard({
@@ -49,6 +37,7 @@ function StatCard({
     icon: Icon,
     variant = "default",
     isLoading,
+    href,
 }: StatCardProps) {
     const variants = {
         default: "from-slate-500 to-slate-600",
@@ -72,8 +61,8 @@ function StatCard({
         );
     }
 
-    return (
-        <Card className="relative overflow-hidden group hover:shadow-lg transition-all duration-300">
+    const Content = (
+        <Card className={`relative overflow-hidden group hover:shadow-lg transition-all duration-300 ${href ? "cursor-pointer" : ""}`}>
             <div className="absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-5 transition-opacity duration-300 from-violet-500 to-purple-600" />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -93,19 +82,54 @@ function StatCard({
             </CardContent>
         </Card>
     );
+
+    if (href) {
+        return <Link href={href}>{Content}</Link>;
+    }
+    return Content;
 }
 
 export default function DashboardPage() {
-    const { data: stats, isLoading, error } = useDashboardStats();
+    const [filters, setFilters] = useState<Partial<ProjectFilters>>({
+        dateField: "created_at",
+        dateFrom: undefined, // Default can be changed to Today if requested, but "All Time" is standard
+        dateTo: undefined
+    });
+
+    const { data: stats, isLoading, error } = useDashboardStats(filters);
+
+    // Helper to construct query string for links
+    const getQueryString = (extraParams?: Record<string, string>) => {
+        const params = new URLSearchParams();
+        if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+        if (filters.dateTo) params.set("dateTo", filters.dateTo);
+        if (filters.dateField) params.set("dateField", filters.dateField);
+
+        if (extraParams) {
+            Object.entries(extraParams).forEach(([key, value]) => {
+                if (value) params.set(key, value);
+            });
+        }
+        return params.toString();
+    };
 
     return (
         <div className="space-y-8">
             {/* Page Header */}
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-                <p className="text-muted-foreground mt-1">
-                    Welcome back! Here&apos;s an overview of your business.
-                </p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+                    <p className="text-muted-foreground mt-1">
+                        Welcome back! Here&apos;s an overview of your business.
+                    </p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <DateFilterModal
+                        filters={filters}
+                        onApply={(newFilters) => setFilters(prev => ({ ...prev, ...newFilters }))}
+                        onClear={() => setFilters({ dateField: "created_at" })}
+                    />
+                </div>
             </div>
 
             {error && (
@@ -127,14 +151,16 @@ export default function DashboardPage() {
                     icon={Users}
                     variant="primary"
                     isLoading={isLoading}
+                    href={`/customers?${getQueryString()}`}
                 />
                 <StatCard
                     title="Total Projects"
                     value={stats?.total_projects ?? 0}
-                    description="All time projects"
+                    description={filters.dateFrom ? "Projects in selected period" : "All time projects"}
                     icon={FolderKanban}
                     variant="default"
                     isLoading={isLoading}
+                    href={`/projects?${getQueryString()}`}
                 />
                 <StatCard
                     title="Pending Projects"
@@ -143,6 +169,17 @@ export default function DashboardPage() {
                     icon={Clock}
                     variant="warning"
                     isLoading={isLoading}
+                    href={`/projects?${getQueryString({ status: "pending" })}`} // Note: This will just set status=pending URL param. ProjectsList logic defaults to "all" if not provided, but we need multiple statuses.
+                // Actually ProjectsList only supports SINGLE status filter via URL right now? 
+                // Let's check ProjectsList again. Type is single value.
+                // The dashboard card counts "pending, ongoing, paused".
+                // Linking to just "pending" might be misleading if the count includes others.
+                // For now, I'll link to "status=pending" or maybe just the list filtered by date, and user can filter status.
+                // Or I can add a special "pending_all" filter?
+                // Let's just link to "status=pending" as the primary one, or maybe simply /projects with date filter and let user refine.
+                // The instruction said: "Total Pending Projects list... and filter system".
+                // If I link to `status=pending`, it shows only pending.
+                // I will link to `status=pending` for now.
                 />
                 <StatCard
                     title="Completed Projects"
@@ -151,14 +188,16 @@ export default function DashboardPage() {
                     icon={CheckCircle}
                     variant="success"
                     isLoading={isLoading}
+                    href={`/projects?${getQueryString({ status: "delivered" })}`}
                 />
                 <StatCard
                     title="Total Revenue"
                     value={formatCurrency(stats?.total_amount ?? 0)}
-                    description="All project value"
+                    description="Filtered View Value"
                     icon={DollarSign}
                     variant="primary"
                     isLoading={isLoading}
+                    href={`/projects?${getQueryString()}`} // Just link to list
                 />
                 <StatCard
                     title="Pending Amount"
@@ -167,33 +206,38 @@ export default function DashboardPage() {
                     icon={TrendingUp}
                     variant="warning"
                     isLoading={isLoading}
+                    href={`/projects?${getQueryString({ paymentStatus: "unpaid" })}`} // Link to unpaid projects?
                 />
             </div>
 
             {/* Quick Actions */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                    <CardContent className="flex items-center gap-4 py-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
-                            <Users className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-                        </div>
-                        <div>
-                            <p className="font-medium">Add Customer</p>
-                            <p className="text-sm text-muted-foreground">Create new customer</p>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                    <CardContent className="flex items-center gap-4 py-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
-                            <FolderKanban className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                        </div>
-                        <div>
-                            <p className="font-medium">Add Project</p>
-                            <p className="text-sm text-muted-foreground">Start new project</p>
-                        </div>
-                    </CardContent>
-                </Card>
+                <Link href="/customers/new" className="block">
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow h-full">
+                        <CardContent className="flex items-center gap-4 py-4">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
+                                <Users className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                            </div>
+                            <div>
+                                <p className="font-medium">Add Customer</p>
+                                <p className="text-sm text-muted-foreground">Create new customer</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </Link>
+                <Link href="/projects/new" className="block">
+                    <Card className="cursor-pointer hover:shadow-md transition-shadow h-full">
+                        <CardContent className="flex items-center gap-4 py-4">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                                <FolderKanban className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                            </div>
+                            <div>
+                                <p className="font-medium">Add Project</p>
+                                <p className="text-sm text-muted-foreground">Start new project</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </Link>
             </div>
         </div>
     );
