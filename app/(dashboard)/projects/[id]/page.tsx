@@ -319,22 +319,20 @@ export default function ProjectDetailPage({
             font-weight: 600;
             text-align: left;
         }
-        .items-table th:nth-child(3),
-        .items-table th:nth-child(4),
+        .items-table th:nth-child(2),
         .items-table th:last-child {
             text-align: center;
-            width: 80px;
+            width: 100px;
         }
         .items-table th:first-child {
-            width: 50%;
+            width: 60%;
         }
         .items-table td {
             padding: 8px;
             border-bottom: 1px solid #ddd;
             vertical-align: top;
         }
-        .items-table td:nth-child(3),
-        .items-table td:nth-child(4),
+        .items-table td:nth-child(2),
         .items-table td:last-child {
             text-align: center;
         }
@@ -509,7 +507,6 @@ export default function ProjectDetailPage({
                 <tr>
                     <th>বিবরণ</th>
                     <th>পরিমাণ</th>
-                    <th>দর</th>
                     <th>টাকা</th>
                 </tr>
             </thead>
@@ -521,14 +518,12 @@ export default function ProjectDetailPage({
                         ${item.details ? `<br><small>${stripHtml(item.details).substring(0, 150)}${stripHtml(item.details).length > 150 ? '...' : ''}</small>` : ''}
                     </td>
                     <td>${toBanglaNumber(item.quantity)}</td>
-                    <td>৳${toBanglaNumber(item.rate.toFixed(0))}</td>
-                    <td><strong>৳${toBanglaNumber(item.amount?.toFixed(0) || (item.quantity * item.rate).toFixed(0))}</strong></td>
+                    <td><strong>৳${toBanglaNumber(item.amount?.toFixed(0) || '0')}</strong></td>
                 </tr>
                 `).join('') || `
                 <tr>
                     <td><strong>${project.title}</strong></td>
                     <td>১</td>
-                    <td>৳${toBanglaNumber(project.total_cost.toFixed(0))}</td>
                     <td><strong>৳${toBanglaNumber(project.total_cost.toFixed(0))}</strong></td>
                 </tr>
                 `}
@@ -536,12 +531,11 @@ export default function ProjectDetailPage({
                 <tr>
                     <td>পেমেন্ট (${formatDate(payment.payment_date, "dd/MM/yy")}) ${payment.note ? `- ${payment.note}` : ''}</td>
                     <td>-</td>
-                    <td>-</td>
                     <td style="color: green;">-৳${toBanglaNumber(payment.amount.toFixed(0))}</td>
                 </tr>
                 `).join('') : ''}
                 <!-- Empty rows for writing if needed -->
-                ${(project.items?.length || 0) < 3 ? '<tr><td>&nbsp;</td><td></td><td></td><td></td></tr>' : ''}
+                ${(project.items?.length || 0) < 3 ? '<tr><td>&nbsp;</td><td></td><td></td></tr>' : ''}
             </tbody>
         </table>
 

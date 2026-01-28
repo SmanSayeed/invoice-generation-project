@@ -71,7 +71,10 @@ export interface CreateProjectInput {
     end_date?: string;
     total_cost?: number;
     paid_amount?: number;
-    customer_id: string;
+    customer_id?: string;
+    customer_name?: string;
+    customer_mobile?: string;
+    customer_address?: string;
     project_by?: string;
     client_received_by?: string;
     priority?: "high" | "mid" | "low";
@@ -95,11 +98,13 @@ export interface ProjectItem {
 }
 
 export interface CreateProjectItemInput {
+    id?: string; // Optional when updating existing item
     project_id?: string; // Optional when creating with project
     title: string;
     details?: string;
     quantity?: number;
     rate?: number;
+    amount?: number;
     sort_order?: number;
 }
 

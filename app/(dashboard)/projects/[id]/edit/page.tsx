@@ -1,12 +1,13 @@
 "use client";
 
-import { use, useEffect } from "react";
+import { use, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useProject, useUpdateProject } from "@/hooks/use-projects";
 import { useCustomers } from "@/hooks/use-customers";
+import type { CustomerWithStats } from "@/lib/types";
 import {
     ArrowLeft,
     Loader2,
@@ -58,13 +59,16 @@ const itemSchema = z.object({
     title: z.string().min(1, "বিবরণ প্রয়োজন"),
     details: z.string().optional(),
     quantity: z.number().min(0, "Must be positive"),
-    rate: z.number().min(0, "Must be positive"),
-    amount: z.number().optional(),
+    amount: z.number().min(0, "Must be positive"),
 });
 
 const projectSchema = z.object({
     title: z.string().min(1, "Title is required"),
     details: z.string().optional(),
+    customer_id: z.string().optional(),
+    customer_name: z.string().min(1, "Customer name is required"),
+    customer_mobile: z.string().min(1, "Customer mobile is required"),
+    customer_address: z.string().optional(),
     start_date: z.date().optional(),
     end_date: z.date().optional(),
     total_cost: z.number().min(0, "Must be positive"),
@@ -86,12 +90,25 @@ export default function EditProjectPage({
     const router = useRouter();
     const { data: project, isLoading } = useProject(id);
     const updateMutation = useUpdateProject();
+    const { data: customersData } = useCustomers({}, 1, 500);
+
+    // Auto-suggestion states
+    const [nameSuggestions, setNameSuggestions] = useState<CustomerWithStats[]>([]);
+    const [mobileSuggestions, setMobileSuggestions] = useState<CustomerWithStats[]>([]);
+    const [showNameSuggestions, setShowNameSuggestions] = useState(false);
+    const [showMobileSuggestions, setShowMobileSuggestions] = useState(false);
+    const nameInputRef = useRef<HTMLDivElement>(null);
+    const mobileInputRef = useRef<HTMLDivElement>(null);
 
     const form = useForm<ProjectFormValues>({
         resolver: zodResolver(projectSchema),
         defaultValues: {
             title: "",
             details: "",
+            customer_id: "",
+            customer_name: "",
+            customer_mobile: "",
+            customer_address: "",
             total_cost: 0,
             project_by: "",
             client_received_by: "",
@@ -109,24 +126,26 @@ export default function EditProjectPage({
     // Watch items to calculate totals
     const watchedItems = form.watch("items");
 
-    // Calculate total cost
+    // Calculate total cost from item amounts
     useEffect(() => {
         if (!watchedItems) return;
 
         const total = watchedItems.reduce((sum: number, item: any) => {
-            return sum + ((item.quantity || 0) * (item.rate || 0));
+            return sum + (Number(item.amount) || 0);
         }, 0);
 
-        if (form.getValues("total_cost") !== total) {
-            form.setValue("total_cost", total);
-        }
-    }, [watchedItems, form]);
+        form.setValue("total_cost", total, { shouldValidate: false });
+    }, [JSON.stringify(watchedItems), form]);
 
     useEffect(() => {
         if (project) {
             form.reset({
                 title: project.title,
                 details: project.details || "",
+                customer_id: project.customer_id || "",
+                customer_name: project.customer_name || "",
+                customer_mobile: project.customer_mobile || "",
+                customer_address: project.customer_address || "",
                 start_date: project.start_date ? parseISO(project.start_date) : undefined,
                 end_date: project.end_date ? parseISO(project.end_date) : undefined,
                 total_cost: project.total_cost,
@@ -137,14 +156,80 @@ export default function EditProjectPage({
                 items: project.items?.map(item => ({
                     ...item,
                     details: item.details || "",
+                    amount: item.amount || (item.quantity * (item.rate || 0)),
                 })) || [],
             });
         }
     }, [project, form]);
 
+    // Filter suggestions based on name input
+    const handleNameChange = (value: string) => {
+        form.setValue("customer_name", value);
+        form.setValue("customer_id", ""); // Clear customer_id when typing new name
+
+        if (value.length > 0 && customersData?.data) {
+            const filtered = customersData.data.filter(c =>
+                c.name.toLowerCase().includes(value.toLowerCase()) ||
+                c.mobile.includes(value)
+            );
+            setNameSuggestions(filtered);
+            setShowNameSuggestions(filtered.length > 0);
+        } else {
+            setShowNameSuggestions(false);
+        }
+    };
+
+    // Filter suggestions based on mobile input
+    const handleMobileChange = (value: string) => {
+        form.setValue("customer_mobile", value);
+        form.setValue("customer_id", ""); // Clear customer_id when typing new mobile
+
+        if (value.length > 0 && customersData?.data) {
+            const filtered = customersData.data.filter(c =>
+                c.mobile.includes(value) ||
+                c.name.toLowerCase().includes(value.toLowerCase())
+            );
+            setMobileSuggestions(filtered);
+            setShowMobileSuggestions(filtered.length > 0);
+        } else {
+            setShowMobileSuggestions(false);
+        }
+    };
+
+    // Select customer from suggestions
+    const selectCustomer = (customer: CustomerWithStats) => {
+        form.setValue("customer_id", customer.id);
+        form.setValue("customer_name", customer.name);
+        form.setValue("customer_mobile", customer.mobile);
+        form.setValue("customer_address", customer.address || "");
+        setShowNameSuggestions(false);
+        setShowMobileSuggestions(false);
+    };
+
+    // Close suggestions on click outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (nameInputRef.current && !nameInputRef.current.contains(e.target as Node)) {
+                setShowNameSuggestions(false);
+            }
+            if (mobileInputRef.current && !mobileInputRef.current.contains(e.target as Node)) {
+                setShowMobileSuggestions(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
     async function onSubmit(data: ProjectFormValues) {
-        // Prepare items by removing the amount field which is calculated in DB
-        const items = data.items.map(({ amount, ...item }) => item);
+        // Prepare items
+        const items = data.items.map(item => ({
+            id: item.id,
+            title: item.title,
+            details: item.details,
+            quantity: item.quantity,
+            rate: 0, // Keep rate as 0 for backward compatibility
+            amount: item.amount,
+        }));
 
         await updateMutation.mutateAsync({
             id,
@@ -245,6 +330,110 @@ export default function EditProjectPage({
                                     )}
                                 />
 
+                                {/* Customer Name with Auto-suggestion */}
+                                <FormField
+                                    control={form.control}
+                                    name="customer_name"
+                                    render={({ field }) => (
+                                        <FormItem className="relative">
+                                            <FormLabel>
+                                                Customer Name <span className="text-destructive">*</span>
+                                            </FormLabel>
+                                            <FormControl>
+                                                <div ref={nameInputRef} className="relative">
+                                                    <Input
+                                                        placeholder="গ্রাহকের নাম লিখুন"
+                                                        value={field.value}
+                                                        onChange={(e) => handleNameChange(e.target.value)}
+                                                        onFocus={() => {
+                                                            if (nameSuggestions.length > 0) {
+                                                                setShowNameSuggestions(true);
+                                                            }
+                                                        }}
+                                                        autoComplete="off"
+                                                    />
+                                                    {showNameSuggestions && nameSuggestions.length > 0 && (
+                                                        <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
+                                                            {nameSuggestions.map((customer) => (
+                                                                <div
+                                                                    key={customer.id}
+                                                                    className="px-3 py-2 cursor-pointer hover:bg-muted flex justify-between items-center"
+                                                                    onClick={() => selectCustomer(customer)}
+                                                                >
+                                                                    <span className="font-medium">{customer.name}</span>
+                                                                    <span className="text-sm text-muted-foreground">{customer.mobile}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {/* Customer Mobile with Auto-suggestion */}
+                                <FormField
+                                    control={form.control}
+                                    name="customer_mobile"
+                                    render={({ field }) => (
+                                        <FormItem className="relative">
+                                            <FormLabel>
+                                                Customer Mobile <span className="text-destructive">*</span>
+                                            </FormLabel>
+                                            <FormControl>
+                                                <div ref={mobileInputRef} className="relative">
+                                                    <Input
+                                                        placeholder="মোবাইল নম্বর লিখুন"
+                                                        value={field.value}
+                                                        onChange={(e) => handleMobileChange(e.target.value)}
+                                                        onFocus={() => {
+                                                            if (mobileSuggestions.length > 0) {
+                                                                setShowMobileSuggestions(true);
+                                                            }
+                                                        }}
+                                                        autoComplete="off"
+                                                    />
+                                                    {showMobileSuggestions && mobileSuggestions.length > 0 && (
+                                                        <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
+                                                            {mobileSuggestions.map((customer) => (
+                                                                <div
+                                                                    key={customer.id}
+                                                                    className="px-3 py-2 cursor-pointer hover:bg-muted flex justify-between items-center"
+                                                                    onClick={() => selectCustomer(customer)}
+                                                                >
+                                                                    <span className="text-sm text-muted-foreground">{customer.mobile}</span>
+                                                                    <span className="font-medium">{customer.name}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {/* Customer Address */}
+                                <FormField
+                                    control={form.control}
+                                    name="customer_address"
+                                    render={({ field }) => (
+                                        <FormItem className="sm:col-span-2">
+                                            <FormLabel>Customer Address</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    placeholder="গ্রাহকের ঠিকানা"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
                                 {/* Status */}
                                 <FormField
                                     control={form.control}
@@ -317,7 +506,6 @@ export default function EditProjectPage({
                                                 title: "",
                                                 details: "",
                                                 quantity: 1,
-                                                rate: 0,
                                                 amount: 0,
                                             })
                                         }
@@ -331,9 +519,8 @@ export default function EditProjectPage({
                                     <table className="w-full text-sm">
                                         <thead className="bg-muted">
                                             <tr>
-                                                <th className="px-4 py-2 text-left font-medium w-[40%]">বিবরণ</th>
-                                                <th className="px-4 py-2 text-left font-medium w-[15%]">পরিমাণ</th>
-                                                <th className="px-4 py-2 text-left font-medium w-[15%]">দর (৳)</th>
+                                                <th className="px-4 py-2 text-left font-medium w-[50%]">বিবরণ</th>
+                                                <th className="px-4 py-2 text-left font-medium w-[20%]">পরিমাণ</th>
                                                 <th className="px-4 py-2 text-left font-medium w-[20%]">টাকা (৳)</th>
                                                 <th className="px-4 py-2 text-center font-medium w-[10%]">Action</th>
                                             </tr>
@@ -369,19 +556,6 @@ export default function EditProjectPage({
                                                                             onChange={(e) => {
                                                                                 const val = parseFloat(e.target.value) || 0;
                                                                                 field.onChange(val);
-
-                                                                                // Calculate row amount
-                                                                                const currentItems = form.getValues("items");
-                                                                                const rate = currentItems[index].rate || 0;
-                                                                                const amount = val * rate;
-                                                                                form.setValue(`items.${index}.amount`, amount);
-
-                                                                                // Calculate total cost
-                                                                                const total = currentItems.reduce((sum, item, i) => {
-                                                                                    if (i === index) return sum + amount;
-                                                                                    return sum + ((item.quantity || 0) * (item.rate || 0));
-                                                                                }, 0);
-                                                                                form.setValue("total_cost", total);
                                                                             }}
                                                                         />
                                                                     </FormControl>
@@ -393,30 +567,18 @@ export default function EditProjectPage({
                                                     <td className="p-2">
                                                         <FormField
                                                             control={form.control}
-                                                            name={`items.${index}.rate`}
+                                                            name={`items.${index}.amount`}
                                                             render={({ field }) => (
                                                                 <FormItem>
                                                                     <FormControl>
                                                                         <Input
                                                                             type="number"
                                                                             step="0.01"
+                                                                            placeholder="0.00"
                                                                             {...field}
                                                                             onChange={(e) => {
                                                                                 const val = parseFloat(e.target.value) || 0;
                                                                                 field.onChange(val);
-
-                                                                                // Calculate row amount
-                                                                                const currentItems = form.getValues("items");
-                                                                                const quantity = currentItems[index].quantity || 0;
-                                                                                const amount = quantity * val;
-                                                                                form.setValue(`items.${index}.amount`, amount);
-
-                                                                                // Calculate total cost
-                                                                                const total = currentItems.reduce((sum, item, i) => {
-                                                                                    if (i === index) return sum + amount;
-                                                                                    return sum + ((item.quantity || 0) * (item.rate || 0));
-                                                                                }, 0);
-                                                                                form.setValue("total_cost", total);
                                                                             }}
                                                                         />
                                                                     </FormControl>
@@ -424,11 +586,6 @@ export default function EditProjectPage({
                                                                 </FormItem>
                                                             )}
                                                         />
-                                                    </td>
-                                                    <td className="p-2">
-                                                        <div className="px-3 py-2 font-medium">
-                                                            ৳{watchedItems[index]?.amount?.toFixed(2) || "0.00"}
-                                                        </div>
                                                     </td>
                                                     <td className="p-2 text-center">
                                                         <Button

@@ -167,7 +167,7 @@ CREATE TABLE public.project_items (
   details TEXT,
   quantity DECIMAL(10,2) DEFAULT 1,
   rate DECIMAL(12,2) DEFAULT 0,
-  amount DECIMAL(12,2) GENERATED ALWAYS AS (quantity * rate) STORED,
+  amount DECIMAL(12,2) DEFAULT 0, -- Direct user input (not generated)
   sort_order INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -182,7 +182,8 @@ DECLARE
   new_total DECIMAL(12,2);
 BEGIN
   IF TG_OP = 'DELETE' THEN
-    SELECT COALESCE(SUM(quantity * rate), 0) INTO new_total
+    -- Sum amount directly (user-input field)
+    SELECT COALESCE(SUM(amount), 0) INTO new_total
     FROM public.project_items 
     WHERE project_id = OLD.project_id;
     
@@ -192,7 +193,8 @@ BEGIN
     
     RETURN OLD;
   ELSE
-    SELECT COALESCE(SUM(quantity * rate), 0) INTO new_total
+    -- Sum amount directly (user-input field)
+    SELECT COALESCE(SUM(amount), 0) INTO new_total
     FROM public.project_items 
     WHERE project_id = NEW.project_id;
     
