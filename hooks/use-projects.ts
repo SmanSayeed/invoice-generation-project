@@ -162,9 +162,10 @@ export function useCreateProject() {
 
     return useMutation({
         mutationFn: async (input: CreateProjectInput): Promise<Project> => {
-            const { items, ...projectData } = input;
+            // Separate items and customer display fields from project data
+            const { items, customer_name, customer_mobile, customer_address, ...projectData } = input;
 
-            // 1. Create the project
+            // 1. Create the project (without customer display fields - those are in customers table)
             const { data: project, error: projectError } = await supabase
                 .from("projects")
                 .insert(projectData)
@@ -215,7 +216,8 @@ export function useUpdateProject() {
             id: string;
             data: UpdateProjectInput;
         }): Promise<Project> => {
-            const { items, ...projectData } = input;
+            // Separate items and customer display fields from project data
+            const { items, customer_name, customer_mobile, customer_address, ...projectData } = input as any;
 
             // 1. Update project metadata
             const { data: project, error: projectError } = await supabase
@@ -235,9 +237,9 @@ export function useUpdateProject() {
                     .select("id")
                     .eq("project_id", id);
 
-                const newItemIds = items
-                    .filter((item) => "id" in item && item.id)
-                    .map((item) => (item as any).id);
+                const newItemIds = (items as any[])
+                    .filter((item: any) => "id" in item && item.id)
+                    .map((item: any) => item.id);
 
                 // Delete items that are no longer present
                 if (existingItems && existingItems.length > 0) {
@@ -255,11 +257,11 @@ export function useUpdateProject() {
                 }
 
                 // Upsert remaining/new items
-                if (items.length > 0) {
-                    const itemsToUpsert = items.map((item, index) => ({
+                if ((items as any[]).length > 0) {
+                    const itemsToUpsert = (items as any[]).map((item: any, index: number) => ({
                         ...item,
                         project_id: id,
-                        sort_order: (item as any).sort_order ?? index,
+                        sort_order: item.sort_order ?? index,
                     }));
 
                     const { error: itemsError } = await supabase
