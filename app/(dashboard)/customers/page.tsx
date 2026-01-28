@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCustomers, useDeleteCustomer } from "@/hooks/use-customers";
@@ -70,7 +70,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type DatePreset = "all" | "today" | "week" | "month" | "custom";
 
-export default function CustomersPage() {
+function CustomersList() {
     const searchParams = useSearchParams();
     const urlDateFrom = searchParams.get("dateFrom") || "";
     const urlDateTo = searchParams.get("dateTo") || "";
@@ -573,5 +573,13 @@ export default function CustomersPage() {
                 </AlertDialogContent>
             </AlertDialog>
         </div>
+    );
+}
+
+export default function CustomersPage() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <CustomersList />
+        </Suspense>
     );
 }
