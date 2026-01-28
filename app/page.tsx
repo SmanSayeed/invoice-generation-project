@@ -29,22 +29,33 @@ import { Button } from "@/components/ui/button";
 
 // Services list - 16 items for 2 columns (8x8)
 const services = [
-  { name: "ভিজিটিং কার্ড", nameEn: "Visiting Cards", icon: CreditCard },
-  { name: "বিয়ের কার্ড", nameEn: "Wedding Cards", icon: FileText },
-  { name: "হালখাতার কার্ড", nameEn: "Halkhata Cards", icon: FileText },
-  { name: "দাওয়াত কার্ড", nameEn: "Invitation Cards", icon: FileText },
+  // Column 1
+  { name: "মানি রিসিট", nameEn: "Money Receipt", icon: FileText },
+  { name: "রেজাল্ট কার্ড", nameEn: "Result Card", icon: Award },
+  { name: "বেতন কার্ড", nameEn: "Salary Card", icon: CreditCard },
+  { name: "মাহফিল কুপন", nameEn: "Mahfil Coupon", icon: FileText },
+  { name: "রমজানের ক্যালেন্ডার", nameEn: "Ramadan Calendar", icon: Calendar },
+  { name: "নতুন বছরের ক্যালেন্ডার", nameEn: "New Year Calendar", icon: Calendar },
+  { name: "নির্বাচন পোস্টার", nameEn: "Election Poster", icon: ImageIcon },
+  { name: "মাহফিল পোস্টার", nameEn: "Mahfil Poster", icon: ImageIcon },
+  { name: "স্কুলের খাতা", nameEn: "School Notebook", icon: FileText },
+  { name: "পরীক্ষার খাতা", nameEn: "Exam Notebook", icon: FileText },
+  { name: "স্কুলের সিলেবাস", nameEn: "School Syllabus", icon: FileText },
   { name: "স্কুল ডায়রী", nameEn: "School Diary", icon: FileText },
-  { name: "পি.ভি.সি ব্যানার", nameEn: "PVC Banner", icon: ImageIcon },
-  { name: "প্যানা ফ্ল্যাক্স", nameEn: "Pana Flex", icon: ImageIcon },
-  { name: "র‍্যাক পি.ভি.সি", nameEn: "Rack PVC", icon: ImageIcon },
-  { name: "ক্যাশ মেমো", nameEn: "Cash Memo", icon: FileText },
-  { name: "পোস্টার", nameEn: "Posters", icon: ImageIcon },
-  { name: "ক্যালেন্ডার", nameEn: "Calendars", icon: Calendar },
-  { name: "রাবার সিল", nameEn: "Rubber Seals", icon: Stamp },
-  { name: "ভিনাইল প্রিন্ট", nameEn: "Vinyl Print", icon: Printer },
-  { name: "ক্লিয়ার মিডিয়া", nameEn: "Clear Media", icon: ImageIcon },
-  { name: "স্টিকার প্রিন্ট", nameEn: "Sticker Print", icon: ImageIcon },
-  { name: "লাইটিং বোর্ড", nameEn: "Lighting Board", icon: Award },
+
+  // Column 2
+  { name: "সকল প্রকার ক্রেস্ট", nameEn: "All Kinds of Crests", icon: Award },
+  { name: "স্টুডেন্ট আইডি কার্ড", nameEn: "Student ID Card", icon: CreditCard },
+  { name: "আইডি কার্ড ফিতা", nameEn: "ID Card Ribbon", icon: CreditCard },
+  { name: "কাপড় প্রিন্ট", nameEn: "Cloth Print", icon: Printer },
+  { name: "ডিটিএফ প্রিন্ট", nameEn: "DTF Print", icon: Printer },
+  { name: "গেঞ্জি প্রিন্ট", nameEn: "T-shirt Print", icon: Printer },
+  { name: "মগ প্রিন্ট", nameEn: "Mug Print", icon: Printer },
+  { name: "কলম প্রিন্ট", nameEn: "Pen Print", icon: Printer },
+  { name: "চাবির রিং প্রিন্ট", nameEn: "Key Ring Print", icon: Printer },
+  { name: "অটো সিল", nameEn: "Auto Seal", icon: Stamp },
+  { name: "রাবার সিল", nameEn: "Rubber Seal", icon: Stamp },
+  { name: "ডিজিটাল সিল", nameEn: "Digital Seal", icon: Stamp },
 ];
 
 // Gallery items
