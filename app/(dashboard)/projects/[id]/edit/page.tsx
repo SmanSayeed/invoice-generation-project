@@ -17,7 +17,6 @@ import {
     Trash2,
     UserPlus,
     Check,
-    X,
 } from "lucide-react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
@@ -76,7 +75,7 @@ const projectSchema = z.object({
     project_by: z.string().optional(),
     client_received_by: z.string().optional(),
     priority: z.enum(["high", "mid", "low"]),
-    status: z.enum(["ongoing", "pending", "completed", "cancelled", "paused"]),
+    status: z.enum(["ongoing", "pending", "completed", "cancelled", "paused", "delivered"]),
     items: z.array(itemSchema),
 });
 
@@ -282,14 +281,22 @@ export default function EditProjectPage({
         }
 
         // Prepare items
-        const items = data.items.map((item: any) => ({
-            id: item.id,
-            title: item.title,
-            details: item.details,
-            quantity: item.quantity,
-            rate: 0,
-            amount: item.amount,
-        }));
+        const items = data.items.map((item: any) => {
+            const itemData: any = {
+                title: item.title,
+                details: item.details,
+                quantity: item.quantity,
+                rate: 0,
+                amount: item.amount,
+            };
+
+            // Only include ID if it exists and is not an empty string
+            if (item.id) {
+                itemData.id = item.id;
+            }
+
+            return itemData;
+        });
 
         await updateMutation.mutateAsync({
             id,
@@ -385,14 +392,7 @@ export default function EditProjectPage({
                                         <p className="text-sm text-muted-foreground">{customerAddress}</p>
                                     )}
                                 </div>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={clearCustomerSelection}
-                                >
-                                    <X className="h-4 w-4" />
-                                </Button>
+                                {/* Customer cannot be removed in edit mode */}
                             </div>
                         </div>
                     ) : (
@@ -561,6 +561,7 @@ export default function EditProjectPage({
                                                         <SelectItem value="ongoing">Ongoing</SelectItem>
                                                         <SelectItem value="paused">Paused</SelectItem>
                                                         <SelectItem value="completed">Completed</SelectItem>
+                                                        <SelectItem value="delivered">Delivered</SelectItem>
                                                         <SelectItem value="cancelled">Cancelled</SelectItem>
                                                     </SelectContent>
                                                 </Select>

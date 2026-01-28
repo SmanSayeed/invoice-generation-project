@@ -24,7 +24,8 @@ import {
     FileOutput,
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { format, startOfDay, endOfDay, subDays } from "date-fns";
+import { format } from "date-fns";
+import { DateFilterModal } from "@/components/projects/date-filter-modal";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,7 +70,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
-type DatePreset = "all" | "today" | "week" | "month" | "custom";
+// Removed DatePreset type
+
 
 function ProjectsList() {
     const searchParams = useSearchParams();
@@ -77,9 +79,8 @@ function ProjectsList() {
 
     const [search, setSearch] = useState("");
     const [debouncedSearch] = useDebounce(search, 300);
-    const [datePreset, setDatePreset] = useState<DatePreset>("all");
-    const [customDateFrom, setCustomDateFrom] = useState("");
-    const [customDateTo, setCustomDateTo] = useState("");
+
+    // Removed local datePreset states as they are now managed by filters directly or inside the modal
     const [filters, setFilters] = useState<ProjectFilters>({
         status: "all",
         priority: "all",
@@ -87,50 +88,20 @@ function ProjectsList() {
         sortBy: "latest",
         customerId: customerId || undefined,
         invoiceNo: "",
+        dateField: "created_at",
     });
     const [page, setPage] = useState(1);
     const [invoiceSearch, setInvoiceSearch] = useState("");
     const [debouncedInvoiceSearch] = useDebounce(invoiceSearch, 300);
     const [deleteId, setDeleteId] = useState<string | null>(null);
 
-    // Calculate date range based on preset
-    const getDateRange = useCallback((preset: DatePreset) => {
-        const now = new Date();
-        switch (preset) {
-            case "today":
-                return {
-                    dateFrom: format(startOfDay(now), "yyyy-MM-dd"),
-                    dateTo: format(endOfDay(now), "yyyy-MM-dd"),
-                };
-            case "week":
-                return {
-                    dateFrom: format(subDays(now, 7), "yyyy-MM-dd"),
-                    dateTo: format(endOfDay(now), "yyyy-MM-dd"),
-                };
-            case "month":
-                return {
-                    dateFrom: format(subDays(now, 30), "yyyy-MM-dd"),
-                    dateTo: format(endOfDay(now), "yyyy-MM-dd"),
-                };
-            case "custom":
-                return {
-                    dateFrom: customDateFrom || undefined,
-                    dateTo: customDateTo || undefined,
-                };
-            default:
-                return { dateFrom: undefined, dateTo: undefined };
-        }
-    }, [customDateFrom, customDateTo]);
-
     const combinedFilters = useMemo(() => {
-        const dateRange = getDateRange(datePreset);
         return {
             ...filters,
             search: debouncedSearch,
             invoiceNo: debouncedInvoiceSearch,
-            ...dateRange,
         };
-    }, [filters, debouncedSearch, debouncedInvoiceSearch, datePreset, getDateRange]);
+    }, [filters, debouncedSearch, debouncedInvoiceSearch]);
 
     const { data, isLoading, error } = useProjects(combinedFilters, page, 10);
     const deleteMutation = useDeleteProject();
@@ -378,6 +349,7 @@ function ProjectsList() {
         .status-completed { background: #d1fae5; color: #065f46; }
         .status-paused { background: #e5e7eb; color: #374151; }
         .status-cancelled { background: #fee2e2; color: #991b1b; }
+        .status-delivered { background: #f3e8ff; color: #6b21a8; }
         
         .items {
             font-size: 7px;
@@ -521,26 +493,17 @@ function ProjectsList() {
 
     const clearFilters = () => {
         setSearch("");
-        setDatePreset("all");
-        setCustomDateFrom("");
-        setCustomDateTo("");
+        setInvoiceSearch("");
         setFilters({
             status: "all",
             priority: "all",
             paymentStatus: "all",
             sortBy: "latest",
+            dateField: "created_at",
+            dateFrom: undefined,
+            dateTo: undefined,
         });
         setPage(1);
-    };
-
-    const getDatePresetLabel = (preset: DatePreset) => {
-        switch (preset) {
-            case "today": return "Today";
-            case "week": return "Last 7 Days";
-            case "month": return "Last 30 Days";
-            case "custom": return customDateFrom || customDateTo ? `${customDateFrom || "..."} - ${customDateTo || "..."}` : "Custom Range";
-            default: return "All Time";
-        }
     };
 
     const hasActiveFilters =
@@ -549,7 +512,8 @@ function ProjectsList() {
         filters.status !== "all" ||
         filters.priority !== "all" ||
         filters.paymentStatus !== "all" ||
-        datePreset !== "all";
+        filters.dateFrom ||
+        filters.dateTo;
 
     return (
         <div className="space-y-6">
@@ -594,11 +558,11 @@ function ProjectsList() {
                                 className="pl-8"
                             />
                         </div>
-                        </div>
+                    </div>
                 </CardContent>
                 <CardContent className="py-2">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-                        
+
                         <div className="flex flex-wrap gap-2">
                             <Select
                                 value={filters.status}
@@ -618,6 +582,7 @@ function ProjectsList() {
                                     <SelectItem value="ongoing">Ongoing</SelectItem>
                                     <SelectItem value="paused">Paused</SelectItem>
                                     <SelectItem value="completed">Completed</SelectItem>
+                                    <SelectItem value="delivered">Delivered</SelectItem>
                                     <SelectItem value="cancelled">Cancelled</SelectItem>
                                 </SelectContent>
                             </Select>
@@ -680,72 +645,17 @@ function ProjectsList() {
                             </Select>
 
                             {/* Date Filter */}
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline" className="min-w-[140px] justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <Calendar className="h-4 w-4" />
-                                            <span className="text-sm">{getDatePresetLabel(datePreset)}</span>
-                                        </div>
-                                        <ChevronDown className="h-4 w-4 opacity-50" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-64 p-0" align="start">
-                                    <div className="p-2 space-y-1">
-                                        <Button
-                                            variant={datePreset === "all" ? "secondary" : "ghost"}
-                                            className="w-full justify-start"
-                                            onClick={() => setDatePreset("all")}
-                                        >
-                                            All Time
-                                        </Button>
-                                        <Button
-                                            variant={datePreset === "today" ? "secondary" : "ghost"}
-                                            className="w-full justify-start"
-                                            onClick={() => setDatePreset("today")}
-                                        >
-                                            Today
-                                        </Button>
-                                        <Button
-                                            variant={datePreset === "week" ? "secondary" : "ghost"}
-                                            className="w-full justify-start"
-                                            onClick={() => setDatePreset("week")}
-                                        >
-                                            Last 7 Days
-                                        </Button>
-                                        <Button
-                                            variant={datePreset === "month" ? "secondary" : "ghost"}
-                                            className="w-full justify-start"
-                                            onClick={() => setDatePreset("month")}
-                                        >
-                                            Last 30 Days
-                                        </Button>
-                                    </div>
-                                    <div className="border-t p-2">
-                                        <p className="text-xs text-muted-foreground mb-2">Custom Range</p>
-                                        <div className="space-y-2">
-                                            <Input
-                                                type="date"
-                                                placeholder="From"
-                                                value={customDateFrom}
-                                                onChange={(e) => {
-                                                    setCustomDateFrom(e.target.value);
-                                                    setDatePreset("custom");
-                                                }}
-                                            />
-                                            <Input
-                                                type="date"
-                                                placeholder="To"
-                                                value={customDateTo}
-                                                onChange={(e) => {
-                                                    setCustomDateTo(e.target.value);
-                                                    setDatePreset("custom");
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                </PopoverContent>
-                            </Popover>
+                            {/* Date Filter Modal */}
+                            <DateFilterModal
+                                filters={filters}
+                                onApply={(newFilters) => setFilters((prev) => ({ ...prev, ...newFilters }))}
+                                onClear={() => setFilters((prev) => ({
+                                    ...prev,
+                                    dateFrom: undefined,
+                                    dateTo: undefined,
+                                    dateField: "created_at"
+                                }))}
+                            />
 
                             {hasActiveFilters && (
                                 <Button variant="ghost" size="icon" onClick={clearFilters}>
@@ -789,6 +699,7 @@ function ProjectsList() {
                                 <TableHead className="text-right">Amount</TableHead>
                                 <TableHead>Start Date</TableHead>
                                 <TableHead>Delivery Date</TableHead>
+                                <TableHead>Created At</TableHead>
                                 <TableHead className="w-[70px]"></TableHead>
                             </TableRow>
                         </TableHeader>
@@ -821,6 +732,12 @@ function ProjectsList() {
                                             <Skeleton className="h-4 w-24" />
                                         </TableCell>
                                         <TableCell>
+                                            <Skeleton className="h-8 w-8" />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Skeleton className="h-4 w-24" />
+                                        </TableCell>
+                                        <TableCell> -- Add extra skeleton cell if needed, but I will just shift things or accept 1 extra col
                                             <Skeleton className="h-8 w-8" />
                                         </TableCell>
                                     </TableRow>
@@ -892,6 +809,9 @@ function ProjectsList() {
                                         </TableCell>
                                         <TableCell className="text-sm text-muted-foreground">
                                             {project.end_date ? formatDate(project.end_date) : "-"}
+                                        </TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">
+                                            {formatDate(project.created_at, "dd MMM yyyy HH:mm")}
                                         </TableCell>
                                         <TableCell>
                                             <DropdownMenu>

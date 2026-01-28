@@ -48,7 +48,7 @@ export interface Project {
     project_by?: string | null;
     client_received_by?: string | null;
     priority: "high" | "mid" | "low";
-    status: "ongoing" | "pending" | "completed" | "cancelled" | "paused";
+    status: "ongoing" | "pending" | "completed" | "cancelled" | "paused" | "delivered";
     invoice_no: number;
     created_at: string;
     updated_at: string;
@@ -78,7 +78,7 @@ export interface CreateProjectInput {
     project_by?: string;
     client_received_by?: string;
     priority?: "high" | "mid" | "low";
-    status?: "ongoing" | "pending" | "completed" | "cancelled" | "paused";
+    status?: "ongoing" | "pending" | "completed" | "cancelled" | "paused" | "delivered";
     items?: CreateProjectItemInput[];
 }
 
@@ -179,12 +179,13 @@ export interface CustomerFilters {
 export interface ProjectFilters {
     search?: string;
     invoiceNo?: string;
-    status?: "ongoing" | "pending" | "completed" | "cancelled" | "paused" | "all";
+    status?: "ongoing" | "pending" | "completed" | "cancelled" | "paused" | "delivered" | "all";
     priority?: "high" | "mid" | "low" | "all";
     customerId?: string;
     paymentStatus?: "paid" | "unpaid" | "all";
     dateFrom?: string;
     dateTo?: string;
+    dateField?: "created_at" | "updated_at" | "start_date" | "end_date";
     sortBy?: "latest" | "oldest";
 }
 

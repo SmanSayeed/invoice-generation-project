@@ -117,7 +117,7 @@ CREATE TABLE public.projects (
   project_by TEXT,
   client_received_by TEXT,
   priority TEXT DEFAULT 'mid' CHECK (priority IN ('high', 'mid', 'low')),
-  status TEXT DEFAULT 'pending' CHECK (status IN ('ongoing', 'pending', 'completed', 'cancelled', 'paused')),
+  status TEXT DEFAULT 'pending' CHECK (status IN ('ongoing', 'pending', 'completed', 'cancelled', 'paused', 'delivered')),
   invoice_no SERIAL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

@@ -66,12 +66,26 @@ export function useProjects(
                 query = query.gt("pending_amount", 0);
             }
 
-            // Date filters (based on start_date)
+            // Date filters
+            const dateField = filters.dateField || "created_at"; // Default to created_at
+            const isTimestampField = dateField === "created_at" || dateField === "updated_at";
+
             if (filters.dateFrom) {
-                query = query.gte("start_date", filters.dateFrom);
+                let fromDate = filters.dateFrom;
+                if (isTimestampField && fromDate.length === 10) {
+                    // Convert local start of day to UTC ISO string
+                    // Strings like YYYY-MM-DD are parsed as UTC by default in some contexts, but T00:00:00 ensures local parsing in Date constructor
+                    fromDate = new Date(`${fromDate}T00:00:00`).toISOString();
+                }
+                query = query.gte(dateField, fromDate);
             }
             if (filters.dateTo) {
-                query = query.lte("start_date", filters.dateTo);
+                let toDate = filters.dateTo;
+                if (isTimestampField && toDate.length === 10) {
+                    // Convert local end of day to UTC ISO string
+                    toDate = new Date(`${toDate}T23:59:59.999`).toISOString();
+                }
+                query = query.lte(dateField, toDate);
             }
 
             // Sorting

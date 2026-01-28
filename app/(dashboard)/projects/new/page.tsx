@@ -75,7 +75,7 @@ const projectSchema = z.object({
     project_by: z.string().optional(),
     client_received_by: z.string().optional(),
     priority: z.enum(["high", "mid", "low"]),
-    status: z.enum(["ongoing", "pending", "completed", "cancelled", "paused"]),
+    status: z.enum(["ongoing", "pending", "completed", "cancelled", "paused", "delivered"]),
     items: z.array(itemSchema),
 });
 
@@ -506,6 +506,7 @@ function NewProjectForm() {
                                                         <SelectItem value="ongoing">Ongoing</SelectItem>
                                                         <SelectItem value="paused">Paused</SelectItem>
                                                         <SelectItem value="completed">Completed</SelectItem>
+                                                        <SelectItem value="delivered">Delivered</SelectItem>
                                                         <SelectItem value="cancelled">Cancelled</SelectItem>
                                                     </SelectContent>
                                                 </Select>
