@@ -272,17 +272,32 @@ export function useUpdateProject() {
 
                 // Upsert remaining/new items
                 if ((items as any[]).length > 0) {
-                    const itemsToUpsert = (items as any[]).map((item: any, index: number) => ({
+                    const allItems = (items as any[]).map((item: any, index: number) => ({
                         ...item,
                         project_id: id,
                         sort_order: item.sort_order ?? index,
                     }));
 
-                    const { error: itemsError } = await supabase
-                        .from("project_items")
-                        .upsert(itemsToUpsert);
+                    const itemsToUpdate = allItems.filter(item => item.id);
+                    const itemsToInsert = allItems.filter(item => !item.id);
 
-                    if (itemsError) throw itemsError;
+                    // Update existing items
+                    if (itemsToUpdate.length > 0) {
+                        const { error: updateError } = await supabase
+                            .from("project_items")
+                            .upsert(itemsToUpdate);
+
+                        if (updateError) throw updateError;
+                    }
+
+                    // Insert new items
+                    if (itemsToInsert.length > 0) {
+                        const { error: insertError } = await supabase
+                            .from("project_items")
+                            .insert(itemsToInsert);
+
+                        if (insertError) throw insertError;
+                    }
                 }
             }
 
